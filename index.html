@@ -721,12 +721,12 @@ function addScore(correct) {
 }
 function updateScoreDisplay() {
   const pct = score.total > 0 ? Math.round(score.ok / score.total * 100) : 0;
-  ['', 'r-'].forEach(pfx => {
+  ['sc-', 'r-'].forEach(pfx => {
     const t = document.getElementById(pfx+'total'); if(t) t.textContent = score.total;
     const o = document.getElementById(pfx+'ok'); if(o) o.textContent = score.ok;
     const k = document.getElementById(pfx+'ko'); if(k) k.textContent = score.ko;
     const p = document.getElementById(pfx+'pct'); if(p) p.textContent = score.total > 0 ? pct+'%' : '—';
-    const b = document.getElementById(pfx === '' ? 'score-bar' : 'r-bar'); if(b) b.style.width = pct+'%';
+    const b = document.getElementById(pfx === 'sc-' ? 'score-bar' : 'r-bar'); if(b) b.style.width = pct+'%';
   });
   const msgs = ['sc-', 'r-'].map(pfx => document.getElementById(pfx === 'sc-' ? 'progress-msg' : 'r-msg'));
   let msg = '';
