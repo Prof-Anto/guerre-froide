@@ -475,6 +475,14 @@
     </div>
     <div class="score-bar-wrap"><div class="score-bar" id="score-bar" style="width:0%"></div></div>
     <div class="progress-msg" id="progress-msg">Commencez à répondre pour voir votre progression !</div>
+    <div style="margin-top:16px;padding-top:14px;border-top:1px solid #e1e5ea">
+      <label for="nom-eleve" style="display:block;font-weight:600;margin-bottom:6px">Nom et prénom de l'élève</label>
+      <input type="text" id="nom-eleve" placeholder="Saisissez le nom et le prénom" autocomplete="name" style="width:100%;max-width:420px;padding:10px;border:1px solid #ccd3dc;border-radius:6px;font:inherit">
+      <div style="margin-top:10px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+        <button class="btn btn-primary" onclick="validerResultats()">✅ Valider et envoyer les résultats</button>
+        <span id="envoi-msg" class="progress-msg" aria-live="polite"></span>
+      </div>
+    </div>
     <div style="margin-top:12px"><button class="btn btn-rouge" onclick="resetScore()">🔄 Réinitialiser le score</button></div>
   </div>
 </div>
@@ -734,6 +742,41 @@ function resetScore() {
   updateScoreDisplay();
 }
 
+// URL à remplacer par l'URL réelle de la Web App Google Apps Script.
+const URL_ENVOI_RESULTATS = 'https://script.google.com/macros/s/AKfycbwgfmUGZgKZ22JJjIjqhPuCCsUKYoxfrIL7hNENg3aMwK9Dz2DJxBPwb7Hk0BkEj7TLow/exec';
+
+function envoyerResultats(nom, score, total, details) {
+  return fetch(URL_ENVOI_RESULTATS, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain' },
+    body: JSON.stringify({ nom: nom, score: score, total: total, details: details })
+  });
+}
+
+function validerResultats() {
+  const nom = document.getElementById('nom-eleve').value.trim();
+  const message = document.getElementById('envoi-msg');
+  if (!nom) {
+    message.textContent = '⚠️ Saisissez le nom et le prénom avant de valider.';
+    document.getElementById('nom-eleve').focus();
+    return;
+  }
+  if (score.total === 0) {
+    message.textContent = '⚠️ Répondez au moins à une question avant de valider.';
+    return;
+  }
+  const details = {
+    correctes: score.ok,
+    incorrectes: score.ko,
+    pourcentage: Math.round(score.ok / score.total * 100),
+    niveau: currentLevel
+  };
+  message.textContent = 'Envoi en cours…';
+  envoyerResultats(nom, score.ok, score.total, details)
+    .then(() => { message.textContent = '✅ Résultats envoyés.'; })
+    .catch(() => { message.textContent = '❌ Échec de l’envoi des résultats.'; });
+}
+
 // ============================================================
 // QCM
 // ============================================================
@@ -960,5 +1003,6 @@ document.addEventListener('DOMContentLoaded', () => {
   updateScoreDisplay();
 });
 </script>
+<script type="module" src="https://static.cloudflareinsights.com/beacon.min.js/v31edd6df95cf4e85bb4c19e7a9bdbcba1788362987495" integrity="sha512-iIg7k2xntmwu6/uSb5tpc/hySgZc4eoL31yB29W6tJFo2akwjPWcEqnCEdJvGexCL0KEQwVYv5BlowfhVz26hg==" data-cf-beacon='{"version":"2024.11.0","token":"8607d2a720d14b038279025b2b5a82e5","spa":2}' crossorigin="anonymous"></script>
 </body>
 </html>
