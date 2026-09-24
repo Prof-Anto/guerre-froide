@@ -130,14 +130,6 @@
 
   /* PROGRESS */
   .progress-msg { font-size: 0.95rem; padding: 10px 16px; border-radius: 8px; background: #eaf4fe; color: var(--bleu); margin-top: 10px; }
-  .quiz-start { background: #eef5ff; border: 2px solid #c9dcf5; border-radius: var(--radius); padding: 20px; margin-bottom: 20px; }
-  .quiz-start label { display: block; font-weight: 600; color: var(--bleu); margin-bottom: 6px; }
-  .quiz-start input { width: 100%; max-width: 420px; padding: 11px 14px; border: 2px solid #d0d7e2; border-radius: 8px; font-size: 1rem; margin-bottom: 10px; }
-  .quiz-start input:focus { outline: none; border-color: var(--bleu); }
-  .quiz-error { color: var(--rouge); font-weight: 600; min-height: 1.5em; margin-bottom: 8px; }
-  .send-status { margin-top: 14px; }
-  .send-status.success { background: #d4f5e2; color: #1a6b3c; }
-  .send-status.error { background: #fde8e8; color: #8b1a1a; }
 
   /* BOUTONS DIVERS */
   .btn { display: inline-block; padding: 10px 24px; border-radius: 24px; border: none; cursor: pointer; font-size: 0.95rem; font-weight: 600; transition: all 0.18s; }
@@ -423,15 +415,19 @@
 
 <!-- ==================== EXERCICES ==================== -->
 <div id="page-exercices" class="page">
-  <div class="card" style="margin-bottom:14px">
-    <h2>🧠 Exercices interactifs</h2>
-    <div class="quiz-start" id="quiz-start">
-      <label for="student-name">Nom de l'élève <span aria-hidden="true">*</span></label>
-      <input type="text" id="student-name" name="student-name" autocomplete="name" placeholder="Entrez votre nom" required>
-      <div class="quiz-error" id="quiz-start-error" role="alert"></div>
+  <div id="student-gate" class="card" style="margin-bottom:14px">
+    <h2>👤 Avant de commencer</h2>
+    <p>Indique ton nom pour enregistrer automatiquement tes résultats.</p>
+    <label for="student-name"><strong>Nom de l'élève</strong></label>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:8px">
+      <input id="student-name" type="text" required autocomplete="name" placeholder="Prénom et nom" style="flex:1;min-width:220px;padding:10px;border:1px solid #ccd6e0;border-radius:8px">
       <button class="btn btn-primary" type="button" onclick="startQuiz()">Commencer</button>
     </div>
-    <div id="quiz-content" style="display:none">
+    <div id="student-gate-msg" class="feedback" role="status" aria-live="polite"></div>
+  </div>
+  <div id="category-completion-msg" class="progress-msg" role="status" aria-live="polite" style="display:none;margin-bottom:14px"></div>
+  <div class="card" style="margin-bottom:14px">
+    <h2>🧠 Exercices interactifs</h2>
     <div class="level-btns">
       <button class="level-btn facile active" onclick="setLevel('facile', this)">😊 Facile</button>
       <button class="level-btn moyen" onclick="setLevel('moyen', this)">🤔 Moyen</button>
@@ -478,7 +474,6 @@
       </div>
     </div>
   </div>
-    </div>
 
   <!-- Score live -->
   <div class="card">
@@ -527,7 +522,6 @@
     </div>
     <div class="score-bar-wrap"><div class="score-bar" id="r-bar" style="width:0%"></div></div>
     <div class="progress-msg" id="r-msg" style="margin-top:14px">Faites des exercices pour voir vos résultats ici !</div>
-    <div class="progress-msg send-status" id="send-status" role="status" aria-live="polite">Les résultats seront envoyés automatiquement à la fin des quatre exercices.</div>
   </div>
   <div class="card">
     <h2>💡 Conseils personnalisés</h2>
@@ -682,68 +676,117 @@ let vfIdx = 0;
 let trousIdx = 0;
 let flashIdx = 0;
 let flashOrder = flashcardsData.map((_,i)=>i);
-let studentName = '';
-let quizStarted = false;
-let sendingState = 'idle';
-let exerciseCompleted = { qcm: false, vf: false, trous: false, assoc: false };
-const GOOGLE_APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwgfmUGZgKZ22JJjIjqhPuCCsUKYoxfrIL7hNENg3aMwK9Dz2DJxBPwb7Hk0BkEj7TLow/exec';
 
 // ============================================================
-// DÉMARRAGE ET ENVOI AUTOMATIQUE DES RÉSULTATS
+// ENREGISTREMENT DES RÉSULTATS
 // ============================================================
+// L'ancienne version reçue ne contient aucun endpoint Google Apps Script.
+// Remplacez la chaîne vide ci-dessous par l'URL déjà utilisée par votre projet
+// Apps Script avant publication. Aucun autre code ne modifie cette URL.
+const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwgfmUGZgKZ22JJjIjqhPuCCsUKYoxfrIL7hNENg3aMwK9Dz2DJxBPwb7Hk0BkEj7TLow/exec';
+const CATEGORY_LABELS = { qcm: 'QCM', vf: 'Vrai/Faux', trous: 'Texte à trous', assoc: 'Association' };
+const CATEGORY_TOTALS = { qcm: 8, vf: 5, trous: 4, assoc: 4 };
+let studentName = '';
+let quizStarted = false;
+let categoryProgress = { qcm: 0, vf: 0, trous: 0, assoc: 0 };
+let sentCategories = new Set();
+let sentFinal = false;
+let sentExit = false;
+let hiddenTimer = null;
+
 function startQuiz() {
   const input = document.getElementById('student-name');
-  const error = document.getElementById('quiz-start-error');
-  studentName = input.value.trim();
-  if (!studentName) {
-    error.textContent = 'Veuillez saisir votre nom avant de commencer le quiz.';
-    input.focus();
-    return;
-  }
-  error.textContent = '';
+  const name = input ? input.value.trim() : '';
+  const msg = document.getElementById('student-gate-msg');
+  if (!name) { if (msg) { msg.textContent = 'Merci d’indiquer ton nom avant de commencer.'; msg.className = 'feedback ko'; } return; }
+  studentName = name;
   quizStarted = true;
-  document.getElementById('quiz-content').style.display = 'block';
-  document.getElementById('quiz-start').style.display = 'none';
+  if (msg) { msg.textContent = 'C’est parti ! Tes résultats seront enregistrés automatiquement.'; msg.className = 'feedback ok'; }
+  const gate = document.getElementById('student-gate');
+  if (gate) gate.style.display = 'none';
 }
-function markExerciseComplete(type) {
-  if (!quizStarted || exerciseCompleted[type]) return;
-  exerciseCompleted[type] = true;
-  if (Object.values(exerciseCompleted).every(Boolean)) envoyerResultats();
+function nowIso() { return new Date().toISOString(); }
+function currentCategoryScores() {
+  return {
+    qcm: categoryProgress.qcm || 0,
+    vraiFaux: categoryProgress.vf || 0,
+    texteATrous: categoryProgress.trous || 0,
+    association: categoryProgress.assoc || 0
+  };
 }
-function setSendStatus(message, kind) {
-  const el = document.getElementById('send-status');
-  if (!el) return;
-  el.className = 'progress-msg send-status ' + (kind || '');
-  el.innerHTML = message;
+function makePayload(type, category) {
+  const pct = score.total ? Math.round(score.ok / score.total * 100) : 0;
+  return {
+    // Champs conservés/attendus par le tableur :
+    nom: studentName,
+    dateHeure: nowIso(),
+    date: new Date().toLocaleDateString('fr-FR'),
+    heure: new Date().toLocaleTimeString('fr-FR'),
+    scoreTotal: score.ok,
+    total: score.total,
+    correctes: score.ok,
+    incorrectes: score.ko,
+    score: pct,
+    scoresParCategorie: currentCategoryScores(),
+    // Nouveaux champs de suivi :
+    type: type,
+    statut: type,
+    categorie: category ? (CATEGORY_LABELS[category] || category) : ''
+  };
 }
-function envoyerResultats() {
-  if (!quizStarted || sendingState === 'sending' || sendingState === 'success') return;
-  sendingState = 'sending';
-  showPage('resultats', document.querySelectorAll('.nav-btn')[5]);
-  setSendStatus('⏳ Envoi automatique des résultats en cours…', '');
-  if (!GOOGLE_APPS_SCRIPT_URL) {
-    sendingState = 'error';
-    setSendStatus("❌ Envoi impossible : aucune URL Google Apps Script n'était présente dans le fichier source. <button class=\"btn btn-secondary\" type=\"button\" onclick=\"envoyerResultats()\">Réessayer</button>", 'error');
-    return;
-  }
-  fetch(GOOGLE_APPS_SCRIPT_URL, {
-    method: 'POST',
-    mode: 'no-cors',
-    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-    body: JSON.stringify({ nom: studentName, score: score.total, bonnes_reponses: score.ok, mauvaises_reponses: score.ko, pourcentage: score.total ? Math.round(score.ok / score.total * 100) : 0 })
-  }).then(() => {
-    sendingState = 'success';
-    setSendStatus('✅ Résultats bien envoyés à votre professeur', 'success');
-  }).catch(() => {
-    sendingState = 'error';
-    setSendStatus("❌ Échec de l'envoi. Vérifiez votre connexion puis réessayez. <button class=\"btn btn-secondary\" type=\"button\" onclick=\"envoyerResultats()\">Réessayer manuellement</button>", 'error');
-  });
+function postResults(payload) {
+  if (!GOOGLE_SCRIPT_URL) return false;
+  const body = JSON.stringify(payload);
+  try {
+    if (navigator.sendBeacon) {
+      const queued = navigator.sendBeacon(GOOGLE_SCRIPT_URL, new Blob([body], {type: 'application/json'}));
+      if (queued) return true;
+    }
+  } catch (e) { /* fallback fetch ci-dessous */ }
+  try {
+    fetch(GOOGLE_SCRIPT_URL, { method: 'POST', mode: 'no-cors', keepalive: true,
+      headers: {'Content-Type': 'text/plain;charset=UTF-8'}, body: body }).catch(() => {});
+    return true;
+  } catch (e) { return false; }
 }
+function maybeCompleteCategory(category) {
+  const limit = category === 'qcm' ? questionsQCM[currentLevel].length : category === 'vf' ? questionsVF[currentLevel].length : category === 'trous' ? questionsTrous[currentLevel].length : questionsAssoc[currentLevel][0].dates.length;
+  if (!limit || categoryProgress[category] < limit || sentCategories.has(category)) return;
+  sentCategories.add(category);
+  const msg = document.getElementById('category-completion-msg');
+  if (msg) { msg.textContent = `🎉 Bravo, tu as terminé les ${CATEGORY_LABELS[category]} !`; msg.style.display = 'block'; }
+  postResults(makePayload('categorie_terminee', category));
+  if (Object.keys(CATEGORY_TOTALS).every(c => { const n = c === 'qcm' ? questionsQCM[currentLevel].length : c === 'vf' ? questionsVF[currentLevel].length : c === 'trous' ? questionsTrous[currentLevel].length : questionsAssoc[currentLevel][0].dates.length; return categoryProgress[c] >= n; })) sendFinalResults();
+}
+function sendFinalResults() {
+  if (sentFinal || !quizStarted) return;
+  sentFinal = true;
+  postResults(makePayload('quiz_complet', ''));
+}
+function sendExitResults() {
+  if (sentExit || !quizStarted || score.total === 0) return;
+  sentExit = true;
+  postResults(makePayload('sortie_prematuree', ''));
+}
+function leaveToHome(btn) {
+  sendExitResults();
+  showPage('accueil', btn);
+}
+function handleVisibilityChange() {
+  if (document.visibilityState === 'hidden') {
+    clearTimeout(hiddenTimer);
+    hiddenTimer = setTimeout(sendExitResults, 1200);
+  } else clearTimeout(hiddenTimer);
+}
+window.addEventListener('beforeunload', sendExitResults);
+window.addEventListener('pagehide', sendExitResults);
+document.addEventListener('visibilitychange', handleVisibilityChange);
 
 // ============================================================
 // NAVIGATION
 // ============================================================
 function showPage(name, btn) {
+  if (name === 'accueil') sendExitResults();
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
   document.getElementById('page-' + name).classList.add('active');
@@ -780,19 +823,25 @@ function setLevel(level, btn) {
 // ============================================================
 // SCORE
 // ============================================================
-function addScore(correct) {
+function addScore(correct, category) {
+  if (!quizStarted) return false;
   score.total++;
   if (correct) score.ok++; else score.ko++;
+  if (category) {
+    categoryProgress[category] = (categoryProgress[category] || 0) + 1;
+    maybeCompleteCategory(category);
+  }
   updateScoreDisplay();
+  return true;
 }
 function updateScoreDisplay() {
   const pct = score.total > 0 ? Math.round(score.ok / score.total * 100) : 0;
-  ['sc-', 'r-'].forEach(pfx => {
+  ['', 'r-'].forEach(pfx => {
     const t = document.getElementById(pfx+'total'); if(t) t.textContent = score.total;
     const o = document.getElementById(pfx+'ok'); if(o) o.textContent = score.ok;
     const k = document.getElementById(pfx+'ko'); if(k) k.textContent = score.ko;
     const p = document.getElementById(pfx+'pct'); if(p) p.textContent = score.total > 0 ? pct+'%' : '—';
-    const b = document.getElementById(pfx === 'sc-' ? 'score-bar' : 'r-bar'); if(b) b.style.width = pct+'%';
+    const b = document.getElementById(pfx === '' ? 'score-bar' : 'r-bar'); if(b) b.style.width = pct+'%';
   });
   const msgs = ['sc-', 'r-'].map(pfx => document.getElementById(pfx === 'sc-' ? 'progress-msg' : 'r-msg'));
   let msg = '';
@@ -805,6 +854,8 @@ function updateScoreDisplay() {
 }
 function resetScore() {
   score = {total:0,ok:0,ko:0};
+  categoryProgress = { qcm: 0, vf: 0, trous: 0, assoc: 0 };
+  sentCategories.clear(); sentFinal = false; sentExit = false;
   updateScoreDisplay();
 }
 
@@ -828,7 +879,7 @@ function answerQCM(idx) {
   const qs = questionsQCM[currentLevel];
   const q = qs[qcmIdx % qs.length];
   const correct = idx === q.r;
-  addScore(correct);
+  addScore(correct, 'qcm');
   const btns = document.querySelectorAll('#qcm-opts .opt-btn');
   btns.forEach((b,i)=>{
     b.disabled = true;
@@ -838,7 +889,6 @@ function answerQCM(idx) {
   const fb = document.getElementById('qcm-fb');
   fb.textContent = (correct ? '✅ Bonne réponse ! ' : '❌ Mauvaise réponse. ') + q.expl;
   fb.className = 'feedback ' + (correct ? 'ok' : 'ko');
-  markExerciseComplete('qcm');
 }
 function nextQuestion() {
   qcmIdx++;
@@ -870,7 +920,7 @@ function answerVF(val) {
   const qs = questionsVF[currentLevel];
   const q = qs[vfIdx % qs.length];
   const correct = val === q.r;
-  addScore(correct);
+  addScore(correct, 'vf');
   const btns = document.querySelectorAll('#vf-btns .vf-btn');
   btns.forEach(b => b.disabled = true);
   const which = val ? 0 : 1;
@@ -879,7 +929,6 @@ function answerVF(val) {
   const fb = document.getElementById('vf-fb');
   fb.textContent = (correct ? '✅ Bonne réponse ! ' : '❌ Mauvaise réponse. ') + q.expl;
   fb.className = 'feedback ' + (correct ? 'ok' : 'ko');
-  markExerciseComplete('vf');
 }
 function nextVF() { vfIdx++; renderVF(); }
 
@@ -907,13 +956,12 @@ function checkTrous() {
   const val = inp.value.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"");
   const rep = q.trou.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"");
   const correct = val === rep;
-  addScore(correct);
+  addScore(correct, 'trous');
   inp.disabled = true;
   inp.classList.add(correct ? 'correct' : 'incorrect');
   const fb = document.getElementById('trous-fb');
   fb.textContent = correct ? `✅ Parfait ! "${q.trou}" est la bonne réponse.` : `❌ La bonne réponse était : "${q.trou}".`;
   fb.className = 'feedback ' + (correct ? 'ok' : 'ko');
-  markExerciseComplete('trous');
 }
 function nextTrous() { trousIdx++; renderTrous(); }
 
@@ -963,7 +1011,7 @@ function tryMatch() {
   const li = assocState.selectedLeft;
   const ri = assocState.selectedRight;
   const correct = assocState.pairs[li] === ri;
-  addScore(correct);
+  addScore(correct, 'assoc');
   document.getElementById('al-'+li).classList.remove('selected');
   document.getElementById('al-'+li).classList.add(correct?'matched-ok':'matched-ko');
   document.getElementById('ar-'+ri).classList.remove('selected');
@@ -975,7 +1023,6 @@ function tryMatch() {
     const fb = document.getElementById('assoc-fb');
     fb.textContent = allOk ? '🎉 Parfait ! Toutes les associations sont correctes !' : 'Terminé. Vérifiez les associations en rouge.';
     fb.className = 'feedback ' + (allOk?'ok':'ko');
-    markExerciseComplete('assoc');
   }
 }
 function newAssoc() { renderAssoc(); }
@@ -1032,14 +1079,6 @@ function showExoTab(name, btn) {
   document.querySelectorAll('.exo-tab').forEach(b=>b.classList.remove('active'));
   btn.classList.add('active');
 }
-
-// Protection contre la fermeture accidentelle avant la fin du quiz.
-window.addEventListener('beforeunload', (event) => {
-  if (quizStarted && sendingState !== 'success' && score.total > 0) {
-    event.preventDefault();
-    event.returnValue = '';
-  }
-});
 
 document.addEventListener('DOMContentLoaded', () => {
   initExoTabs();
