@@ -130,6 +130,14 @@
 
   /* PROGRESS */
   .progress-msg { font-size: 0.95rem; padding: 10px 16px; border-radius: 8px; background: #eaf4fe; color: var(--bleu); margin-top: 10px; }
+  .quiz-start { background: #fff8e7; border: 2px solid var(--or); border-radius: var(--radius); padding: 18px 20px; margin-bottom: 14px; }
+  .quiz-start label { display: block; font-weight: 700; color: var(--bleu); margin-bottom: 7px; }
+  .quiz-start input { width: min(100%, 420px); padding: 10px 12px; border: 2px solid #d0d7e2; border-radius: 8px; font-size: 1rem; margin-right: 8px; }
+  .quiz-start input:focus { outline: 2px solid #f39c12; border-color: var(--or); }
+  .quiz-status { margin-top: 10px; font-size: 0.93rem; }
+  .quiz-status.error { color: var(--rouge); font-weight: 600; }
+  .quiz-status.success { color: #1a6b3c; font-weight: 600; }
+  .btn:disabled { opacity: 0.55; cursor: not-allowed; }
 
   /* BOUTONS DIVERS */
   .btn { display: inline-block; padding: 10px 24px; border-radius: 24px; border: none; cursor: pointer; font-size: 0.95rem; font-weight: 600; transition: all 0.18s; }
@@ -415,6 +423,12 @@
 
 <!-- ==================== EXERCICES ==================== -->
 <div id="page-exercices" class="page">
+  <div class="quiz-start" id="quiz-start-panel">
+    <label for="student-name">Nom de l'élève <span aria-hidden="true">*</span></label>
+    <input id="student-name" type="text" maxlength="120" autocomplete="name" placeholder="Saisissez votre nom" aria-describedby="quiz-start-status">
+    <button class="btn btn-primary" id="start-quiz-btn" type="button" onclick="startQuiz()">Commencer</button>
+    <div class="quiz-status" id="quiz-start-status" role="status">Le nom est obligatoire pour commencer le quiz.</div>
+  </div>
   <div class="card" style="margin-bottom:14px">
     <h2>🧠 Exercices interactifs</h2>
     <div class="level-btns">
@@ -475,14 +489,8 @@
     </div>
     <div class="score-bar-wrap"><div class="score-bar" id="score-bar" style="width:0%"></div></div>
     <div class="progress-msg" id="progress-msg">Commencez à répondre pour voir votre progression !</div>
-    <div style="margin-top:16px;padding-top:14px;border-top:1px solid #e1e5ea">
-      <label for="nom-eleve" style="display:block;font-weight:600;margin-bottom:6px">Nom et prénom de l'élève</label>
-      <input type="text" id="nom-eleve" placeholder="Saisissez le nom et le prénom" autocomplete="name" style="width:100%;max-width:420px;padding:10px;border:1px solid #ccd3dc;border-radius:6px;font:inherit">
-      <div style="margin-top:10px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-        <button class="btn btn-primary" onclick="validerResultats()">✅ Valider et envoyer les résultats</button>
-        <span id="envoi-msg" class="progress-msg" aria-live="polite"></span>
-      </div>
-    </div>
+    <div class="quiz-status" id="send-status" role="status" aria-live="polite">Les résultats seront envoyés automatiquement après les 4 catégories.</div>
+    <button class="btn btn-or" id="retry-send-btn" type="button" onclick="retrySendResults()" style="display:none;margin-top:10px">Réessayer manuellement</button>
     <div style="margin-top:12px"><button class="btn btn-rouge" onclick="resetScore()">🔄 Réinitialiser le score</button></div>
   </div>
 </div>
@@ -673,6 +681,93 @@ let vfIdx = 0;
 let trousIdx = 0;
 let flashIdx = 0;
 let flashOrder = flashcardsData.map((_,i)=>i);
+let studentName = '';
+let quizStarted = false;
+let categoryAnswered = { qcm: new Set(), vf: new Set(), trous: new Set(), assoc: new Set() };
+let categoryScores = { qcm: { total: 0, ok: 0 }, vf: { total: 0, ok: 0 }, trous: { total: 0, ok: 0 }, assoc: { total: 0, ok: 0 } };
+let categoryDone = { qcm: false, vf: false, trous: false, assoc: false };
+let sendState = 'idle'; // idle, sending, success, failed
+const RESULTS_URL = 'https://script.google.com/macros/s/AKfycbwgfmUGZgKZ22JJjIjqhPuCCsUKYoxfrIL7hNENg3aMwK9Dz2DJxBPwb7Hk0BkEj7TLow/exec';
+
+// ============================================================
+// SESSION DU QUIZ ET ENVOI DES RÉSULTATS
+// ============================================================
+function startQuiz() {
+  const input = document.getElementById('student-name');
+  const name = input.value.trim();
+  const status = document.getElementById('quiz-start-status');
+  if (!name) {
+    status.textContent = 'Veuillez saisir le nom de l’élève avant de commencer.';
+    status.className = 'quiz-status error';
+    input.focus();
+    return;
+  }
+  studentName = name;
+  quizStarted = true;
+  document.getElementById('quiz-start-panel').style.display = 'none';
+  document.getElementById('send-status').textContent = 'Quiz démarré. Les résultats seront envoyés automatiquement après les 4 catégories.';
+}
+function requireQuizStarted() {
+  if (quizStarted) return true;
+  const panel = document.getElementById('quiz-start-panel');
+  const status = document.getElementById('quiz-start-status');
+  panel.style.display = 'block';
+  status.textContent = 'Saisissez le nom de l’élève puis cliquez sur « Commencer ».';
+  status.className = 'quiz-status error';
+  document.getElementById('student-name').focus();
+  return false;
+}
+function markCategoryAnswer(category, index, correct) {
+  if (!quizStarted || categoryAnswered[category].has(index)) return;
+  categoryAnswered[category].add(index);
+  categoryScores[category].total++;
+  if (correct) categoryScores[category].ok++;
+  const expected = category === 'qcm' ? questionsQCM[currentLevel].length : category === 'vf' ? questionsVF[currentLevel].length : category === 'trous' ? questionsTrous[currentLevel].length : questionsAssoc[currentLevel][0].dates.length;
+  if (categoryAnswered[category].size >= expected) {
+    categoryDone[category] = true;
+    maybeSendResults();
+  }
+}
+function maybeSendResults() {
+  if (!quizStarted || sendState !== 'idle' || !Object.values(categoryDone).every(Boolean)) return;
+  sendResults();
+}
+function buildResultsPayload() {
+  return { nom: studentName, name: studentName, date: new Date().toISOString(), scoreTotal: score.total, scoreOk: score.ok, scoreKo: score.ko, pourcentage: score.total ? Math.round(score.ok / score.total * 100) : 0, categories: categoryScores };
+}
+async function sendResults() {
+  if (sendState === 'sending' || sendState === 'success') return;
+  sendState = 'sending';
+  const status = document.getElementById('send-status');
+  const retry = document.getElementById('retry-send-btn');
+  status.className = 'quiz-status';
+  status.textContent = 'Envoi automatique des résultats en cours…';
+  retry.style.display = 'none';
+  try {
+    const response = await fetch(RESULTS_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(buildResultsPayload()) });
+    if (!response.ok) throw new Error('Réponse HTTP ' + response.status);
+    sendState = 'success';
+    status.className = 'quiz-status success';
+    status.textContent = '✅ Résultats envoyés avec succès.';
+  } catch (error) {
+    sendState = 'failed';
+    status.className = 'quiz-status error';
+    status.textContent = '❌ Échec de l’envoi des résultats. Vous pouvez réessayer manuellement.';
+    retry.style.display = 'inline-block';
+    console.error('Envoi des résultats impossible :', error);
+  }
+}
+function retrySendResults() {
+  if (sendState !== 'failed') return;
+  sendState = 'idle';
+  sendResults();
+}
+window.addEventListener('beforeunload', event => {
+  if (quizStarted && sendState !== 'success') {
+    event.preventDefault();
+    event.returnValue = '';
+  }
+});
 
 // ============================================================
 // NAVIGATION
@@ -708,25 +803,30 @@ function setLevel(level, btn) {
   document.querySelectorAll('.level-btn').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
   qcmIdx = 0; vfIdx = 0; trousIdx = 0;
+  categoryAnswered = { qcm: new Set(), vf: new Set(), trous: new Set(), assoc: new Set() };
+  categoryScores = { qcm: { total: 0, ok: 0 }, vf: { total: 0, ok: 0 }, trous: { total: 0, ok: 0 }, assoc: { total: 0, ok: 0 } };
+  categoryDone = { qcm: false, vf: false, trous: false, assoc: false };
   renderQCM(); renderVF(); renderTrous(); renderAssoc();
 }
 
 // ============================================================
 // SCORE
 // ============================================================
-function addScore(correct) {
+function addScore(correct, category, index) {
+  if (!requireQuizStarted()) return;
   score.total++;
   if (correct) score.ok++; else score.ko++;
+  if (category) markCategoryAnswer(category, index, correct);
   updateScoreDisplay();
 }
 function updateScoreDisplay() {
   const pct = score.total > 0 ? Math.round(score.ok / score.total * 100) : 0;
-  ['sc-', 'r-'].forEach(pfx => {
+  ['', 'r-'].forEach(pfx => {
     const t = document.getElementById(pfx+'total'); if(t) t.textContent = score.total;
     const o = document.getElementById(pfx+'ok'); if(o) o.textContent = score.ok;
     const k = document.getElementById(pfx+'ko'); if(k) k.textContent = score.ko;
     const p = document.getElementById(pfx+'pct'); if(p) p.textContent = score.total > 0 ? pct+'%' : '—';
-    const b = document.getElementById(pfx === 'sc-' ? 'score-bar' : 'r-bar'); if(b) b.style.width = pct+'%';
+    const b = document.getElementById(pfx === '' ? 'score-bar' : 'r-bar'); if(b) b.style.width = pct+'%';
   });
   const msgs = ['sc-', 'r-'].map(pfx => document.getElementById(pfx === 'sc-' ? 'progress-msg' : 'r-msg'));
   let msg = '';
@@ -739,42 +839,13 @@ function updateScoreDisplay() {
 }
 function resetScore() {
   score = {total:0,ok:0,ko:0};
+  categoryAnswered = { qcm: new Set(), vf: new Set(), trous: new Set(), assoc: new Set() };
+  categoryScores = { qcm: { total: 0, ok: 0 }, vf: { total: 0, ok: 0 }, trous: { total: 0, ok: 0 }, assoc: { total: 0, ok: 0 } };
+  categoryDone = { qcm: false, vf: false, trous: false, assoc: false };
+  sendState = 'idle';
+  document.getElementById('send-status').textContent = quizStarted ? 'Score réinitialisé. Les résultats seront envoyés après les 4 catégories.' : 'Les résultats seront envoyés automatiquement après les 4 catégories.';
+  document.getElementById('retry-send-btn').style.display = 'none';
   updateScoreDisplay();
-}
-
-// URL à remplacer par l'URL réelle de la Web App Google Apps Script.
-const URL_ENVOI_RESULTATS = 'https://script.google.com/macros/s/AKfycbwgfmUGZgKZ22JJjIjqhPuCCsUKYoxfrIL7hNENg3aMwK9Dz2DJxBPwb7Hk0BkEj7TLow/exec';
-
-function envoyerResultats(nom, score, total, details) {
-  return fetch(URL_ENVOI_RESULTATS, {
-    method: 'POST',
-    headers: { 'Content-Type': 'text/plain' },
-    body: JSON.stringify({ nom: nom, score: score, total: total, details: details })
-  });
-}
-
-function validerResultats() {
-  const nom = document.getElementById('nom-eleve').value.trim();
-  const message = document.getElementById('envoi-msg');
-  if (!nom) {
-    message.textContent = '⚠️ Saisissez le nom et le prénom avant de valider.';
-    document.getElementById('nom-eleve').focus();
-    return;
-  }
-  if (score.total === 0) {
-    message.textContent = '⚠️ Répondez au moins à une question avant de valider.';
-    return;
-  }
-  const details = {
-    correctes: score.ok,
-    incorrectes: score.ko,
-    pourcentage: Math.round(score.ok / score.total * 100),
-    niveau: currentLevel
-  };
-  message.textContent = 'Envoi en cours…';
-  envoyerResultats(nom, score.ok, score.total, details)
-    .then(() => { message.textContent = '✅ Résultats envoyés.'; })
-    .catch(() => { message.textContent = '❌ Échec de l’envoi des résultats.'; });
 }
 
 // ============================================================
@@ -794,10 +865,11 @@ function renderQCM() {
   `;
 }
 function answerQCM(idx) {
+  if (!requireQuizStarted()) return;
   const qs = questionsQCM[currentLevel];
   const q = qs[qcmIdx % qs.length];
   const correct = idx === q.r;
-  addScore(correct);
+  addScore(correct, 'qcm', qcmIdx % qs.length);
   const btns = document.querySelectorAll('#qcm-opts .opt-btn');
   btns.forEach((b,i)=>{
     b.disabled = true;
@@ -835,10 +907,11 @@ function renderVF() {
   `;
 }
 function answerVF(val) {
+  if (!requireQuizStarted()) return;
   const qs = questionsVF[currentLevel];
   const q = qs[vfIdx % qs.length];
   const correct = val === q.r;
-  addScore(correct);
+  addScore(correct, 'vf', vfIdx % qs.length);
   const btns = document.querySelectorAll('#vf-btns .vf-btn');
   btns.forEach(b => b.disabled = true);
   const which = val ? 0 : 1;
@@ -867,6 +940,7 @@ function renderTrous() {
   document.getElementById('trous-inp').addEventListener('keydown', e => { if(e.key==='Enter') checkTrous(); });
 }
 function checkTrous() {
+  if (!requireQuizStarted()) return;
   const qs = questionsTrous[currentLevel];
   const q = qs[trousIdx % qs.length];
   const inp = document.getElementById('trous-inp');
@@ -874,7 +948,7 @@ function checkTrous() {
   const val = inp.value.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"");
   const rep = q.trou.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"");
   const correct = val === rep;
-  addScore(correct);
+  addScore(correct, 'trous', trousIdx % qs.length);
   inp.disabled = true;
   inp.classList.add(correct ? 'correct' : 'incorrect');
   const fb = document.getElementById('trous-fb');
@@ -925,11 +999,12 @@ function selectRight(origIdx) {
   tryMatch();
 }
 function tryMatch() {
+  if (!requireQuizStarted()) return;
   if (assocState.selectedLeft === null || assocState.selectedRight === null) return;
   const li = assocState.selectedLeft;
   const ri = assocState.selectedRight;
   const correct = assocState.pairs[li] === ri;
-  addScore(correct);
+  addScore(correct, 'assoc', li);
   document.getElementById('al-'+li).classList.remove('selected');
   document.getElementById('al-'+li).classList.add(correct?'matched-ok':'matched-ko');
   document.getElementById('ar-'+ri).classList.remove('selected');
