@@ -1,0 +1,964 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Guerre Froide — Application de Révision</title>
+<style>
+  :root {
+    --bleu: #1a3a6e;
+    --rouge: #c0392b;
+    --or: #e67e22;
+    --vert: #27ae60;
+    --gris: #ecf0f1;
+    --gris-fonce: #7f8c8d;
+    --blanc: #ffffff;
+    --texte: #2c3e50;
+    --ombre: 0 2px 12px rgba(0,0,0,0.09);
+    --radius: 12px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f4f8; color: var(--texte); line-height: 1.65; }
+
+  /* NAV */
+  nav { background: var(--bleu); color: #fff; padding: 0; box-shadow: 0 2px 8px rgba(0,0,0,0.18); position: sticky; top: 0; z-index: 100; }
+  .nav-inner { max-width: 1100px; margin: auto; display: flex; align-items: center; gap: 0; flex-wrap: wrap; }
+  .nav-title { font-size: 1.1rem; font-weight: 700; padding: 14px 20px 14px 20px; letter-spacing: 0.5px; flex: 1; white-space: nowrap; }
+  .nav-title span { color: #f39c12; }
+  .nav-btn { background: none; border: none; color: rgba(255,255,255,0.82); padding: 14px 16px; cursor: pointer; font-size: 0.92rem; font-weight: 500; transition: background 0.18s, color 0.18s; border-bottom: 3px solid transparent; }
+  .nav-btn:hover { background: rgba(255,255,255,0.1); color: #fff; }
+  .nav-btn.active { color: #f39c12; border-bottom-color: #f39c12; }
+
+  /* MAIN */
+  main { max-width: 1100px; margin: 0 auto; padding: 24px 16px 60px; }
+  .page { display: none; }
+  .page.active { display: block; }
+
+  /* CARDS */
+  .card { background: var(--blanc); border-radius: var(--radius); box-shadow: var(--ombre); padding: 24px 28px; margin-bottom: 20px; }
+  .card h2 { font-size: 1.25rem; color: var(--bleu); margin-bottom: 14px; display: flex; align-items: center; gap: 10px; }
+  .card h3 { font-size: 1.05rem; color: var(--texte); margin: 14px 0 8px; font-weight: 600; }
+  .card p { margin-bottom: 10px; font-size: 0.97rem; }
+
+  /* BADGES */
+  .badge { display: inline-block; padding: 3px 10px; border-radius: 20px; font-size: 0.78rem; font-weight: 600; margin: 2px; }
+  .badge-bleu { background: #d6e4f7; color: #1a3a6e; }
+  .badge-rouge { background: #fde8e8; color: #c0392b; }
+  .badge-or { background: #fef3e2; color: #b7590c; }
+  .badge-vert { background: #d4f5e2; color: #1a6b3c; }
+
+  /* MOT-CLÉ */
+  .motcle { background: #fff3cd; color: #856404; padding: 1px 6px; border-radius: 4px; font-weight: 600; font-size: 0.95em; }
+
+  /* SECTIONS COURS */
+  .section-cours { border-left: 4px solid var(--bleu); padding-left: 16px; margin-bottom: 24px; }
+  .section-cours.rouge { border-left-color: var(--rouge); }
+  .section-cours.or { border-left-color: var(--or); }
+  .section-cours.vert { border-left-color: var(--vert); }
+
+  .toggle-btn { background: none; border: 1px solid #d0d7e2; border-radius: 8px; padding: 5px 12px; font-size: 0.82rem; color: var(--gris-fonce); cursor: pointer; margin-left: auto; transition: all 0.18s; }
+  .toggle-btn:hover { background: var(--gris); }
+  .section-header { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+  .section-content { transition: all 0.25s; }
+  .section-content.hidden { display: none; }
+
+  /* CHRONOLOGIE */
+  .timeline { position: relative; padding-left: 30px; }
+  .timeline::before { content: ''; position: absolute; left: 10px; top: 0; bottom: 0; width: 3px; background: linear-gradient(to bottom, var(--bleu), var(--rouge)); border-radius: 2px; }
+  .tl-item { position: relative; margin-bottom: 18px; }
+  .tl-dot { position: absolute; left: -25px; top: 4px; width: 14px; height: 14px; border-radius: 50%; background: var(--bleu); border: 2.5px solid #fff; box-shadow: 0 0 0 2px var(--bleu); }
+  .tl-dot.rouge { background: var(--rouge); box-shadow: 0 0 0 2px var(--rouge); }
+  .tl-dot.or { background: var(--or); box-shadow: 0 0 0 2px var(--or); }
+  .tl-dot.vert { background: var(--vert); box-shadow: 0 0 0 2px var(--vert); }
+  .tl-year { font-weight: 700; color: var(--bleu); font-size: 0.95rem; }
+  .tl-event { font-size: 0.93rem; color: var(--texte); }
+
+  /* FLASHCARDS */
+  .flashcard-wrap { perspective: 1000px; }
+  .flashcard { width: 100%; min-height: 160px; position: relative; transform-style: preserve-3d; transition: transform 0.5s; cursor: pointer; }
+  .flashcard.flipped { transform: rotateY(180deg); }
+  .card-face { position: absolute; width: 100%; min-height: 160px; backface-visibility: hidden; border-radius: var(--radius); display: flex; align-items: center; justify-content: center; padding: 24px; text-align: center; }
+  .card-front { background: var(--bleu); color: #fff; font-size: 1.05rem; font-weight: 500; }
+  .card-back { background: #eaf8f0; color: var(--texte); transform: rotateY(180deg); font-size: 0.97rem; border: 2px solid var(--vert); }
+  .flashcard-hint { text-align: center; font-size: 0.82rem; color: var(--gris-fonce); margin-top: 170px; }
+
+  /* EXERCICES */
+  .exo-question { font-weight: 600; font-size: 1rem; margin-bottom: 14px; color: var(--bleu); }
+  .exo-options { display: grid; gap: 10px; margin-bottom: 14px; }
+  .exo-options.cols2 { grid-template-columns: 1fr 1fr; }
+  .opt-btn { background: #f4f6fa; border: 2px solid #d0d7e2; border-radius: 10px; padding: 11px 16px; cursor: pointer; font-size: 0.94rem; text-align: left; transition: all 0.18s; }
+  .opt-btn:hover:not(:disabled) { background: #dde8f8; border-color: var(--bleu); }
+  .opt-btn.correct { background: #d4f5e2; border-color: var(--vert); color: #1a6b3c; }
+  .opt-btn.incorrect { background: #fde8e8; border-color: var(--rouge); color: #8b1a1a; }
+  .opt-btn:disabled { cursor: default; }
+
+  .feedback { padding: 10px 16px; border-radius: 8px; font-weight: 600; font-size: 0.93rem; margin-bottom: 12px; display: none; }
+  .feedback.ok { background: #d4f5e2; color: #1a6b3c; display: block; }
+  .feedback.ko { background: #fde8e8; color: #8b1a1a; display: block; }
+
+  /* SCORE */
+  .score-bar-wrap { background: #e9ecef; border-radius: 20px; height: 14px; margin: 10px 0; overflow: hidden; }
+  .score-bar { height: 100%; border-radius: 20px; background: linear-gradient(to right, var(--bleu), var(--vert)); transition: width 0.5s; }
+  .score-display { display: flex; gap: 20px; flex-wrap: wrap; margin: 16px 0; }
+  .score-stat { background: #f4f6fa; border-radius: 10px; padding: 12px 20px; text-align: center; flex: 1; min-width: 100px; }
+  .score-stat .val { font-size: 1.6rem; font-weight: 700; color: var(--bleu); }
+  .score-stat .lbl { font-size: 0.8rem; color: var(--gris-fonce); margin-top: 2px; }
+
+  /* NIVEAUX */
+  .level-btns { display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; }
+  .level-btn { padding: 8px 22px; border-radius: 20px; border: 2px solid; font-weight: 600; font-size: 0.9rem; cursor: pointer; transition: all 0.18s; background: #fff; }
+  .level-btn.facile { border-color: var(--vert); color: var(--vert); }
+  .level-btn.facile.active, .level-btn.facile:hover { background: var(--vert); color: #fff; }
+  .level-btn.moyen { border-color: var(--or); color: #b7590c; }
+  .level-btn.moyen.active, .level-btn.moyen:hover { background: var(--or); color: #fff; }
+  .level-btn.difficile { border-color: var(--rouge); color: var(--rouge); }
+  .level-btn.difficile.active, .level-btn.difficile:hover { background: var(--rouge); color: #fff; }
+
+  /* TEXTE A TROUS */
+  .trous-input { border: none; border-bottom: 2px solid var(--bleu); background: transparent; font-size: 1rem; padding: 2px 6px; width: 120px; text-align: center; color: var(--texte); outline: none; }
+  .trous-input.correct { border-bottom-color: var(--vert); color: var(--vert); font-weight: 700; }
+  .trous-input.incorrect { border-bottom-color: var(--rouge); color: var(--rouge); }
+
+  /* ASSOCIATION */
+  .assoc-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px; }
+  .assoc-left, .assoc-right { display: flex; flex-direction: column; gap: 8px; }
+  .assoc-item { padding: 10px 14px; border-radius: 9px; cursor: pointer; font-size: 0.92rem; text-align: center; border: 2px solid #d0d7e2; background: #f4f6fa; transition: all 0.18s; user-select: none; }
+  .assoc-item:hover { border-color: var(--bleu); background: #dde8f8; }
+  .assoc-item.selected { border-color: var(--bleu); background: var(--bleu); color: #fff; }
+  .assoc-item.matched-ok { border-color: var(--vert); background: #d4f5e2; color: #1a6b3c; cursor: default; }
+  .assoc-item.matched-ko { border-color: var(--rouge); background: #fde8e8; color: #8b1a1a; cursor: default; }
+
+  /* PROGRESS */
+  .progress-msg { font-size: 0.95rem; padding: 10px 16px; border-radius: 8px; background: #eaf4fe; color: var(--bleu); margin-top: 10px; }
+
+  /* BOUTONS DIVERS */
+  .btn { display: inline-block; padding: 10px 24px; border-radius: 24px; border: none; cursor: pointer; font-size: 0.95rem; font-weight: 600; transition: all 0.18s; }
+  .btn-primary { background: var(--bleu); color: #fff; }
+  .btn-primary:hover { background: #15316a; }
+  .btn-secondary { background: var(--gris); color: var(--texte); }
+  .btn-secondary:hover { background: #d0d7e2; }
+  .btn-rouge { background: var(--rouge); color: #fff; }
+  .btn-rouge:hover { background: #a93226; }
+  .btn-or { background: var(--or); color: #fff; }
+
+  /* TABS EXERCICES */
+  .exo-tabs { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 20px; }
+  .exo-tab { padding: 8px 18px; border-radius: 20px; border: 2px solid #d0d7e2; background: #fff; font-size: 0.88rem; font-weight: 600; cursor: pointer; color: var(--gris-fonce); transition: all 0.18s; }
+  .exo-tab.active { background: var(--bleu); border-color: var(--bleu); color: #fff; }
+
+  /* SECTION ICON */
+  .section-icon { font-size: 1.4rem; }
+
+  /* VF */
+  .vf-btns { display: flex; gap: 12px; }
+  .vf-btn { flex: 1; padding: 12px; border-radius: 10px; border: 2px solid #d0d7e2; background: #f4f6fa; font-size: 1rem; font-weight: 700; cursor: pointer; transition: all 0.18s; }
+  .vf-btn:hover:not(:disabled) { border-color: var(--bleu); background: #dde8f8; }
+  .vf-btn.correct { background: #d4f5e2; border-color: var(--vert); color: #1a6b3c; }
+  .vf-btn.incorrect { background: #fde8e8; border-color: var(--rouge); color: #8b1a1a; }
+
+  /* RESPONSIVE */
+  @media (max-width: 650px) {
+    .exo-options.cols2 { grid-template-columns: 1fr; }
+    .assoc-grid { grid-template-columns: 1fr 1fr; }
+    .nav-title { font-size: 0.95rem; padding: 12px 12px; }
+    .nav-btn { padding: 12px 10px; font-size: 0.83rem; }
+    .card { padding: 16px 14px; }
+    main { padding: 14px 8px 50px; }
+  }
+
+  /* ACCUEIL */
+  .hero { text-align: center; padding: 40px 20px 30px; }
+  .hero h1 { font-size: 2rem; color: var(--bleu); margin-bottom: 10px; }
+  .hero p { font-size: 1.05rem; color: var(--gris-fonce); max-width: 580px; margin: 0 auto 28px; }
+  .hero-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; max-width: 800px; margin: 0 auto; }
+  .hero-card { background: #fff; border-radius: var(--radius); box-shadow: var(--ombre); padding: 22px 16px; text-align: center; cursor: pointer; transition: transform 0.18s, box-shadow 0.18s; }
+  .hero-card:hover { transform: translateY(-3px); box-shadow: 0 6px 24px rgba(0,0,0,0.13); }
+  .hero-card .ico { font-size: 2.2rem; margin-bottom: 10px; }
+  .hero-card .titre { font-weight: 700; color: var(--bleu); font-size: 1rem; }
+  .hero-card .desc { font-size: 0.82rem; color: var(--gris-fonce); margin-top: 5px; }
+
+  /* REVISER RAPIDEMENT */
+  .rapide-card { background: linear-gradient(135deg, #1a3a6e, #2980b9); color: #fff; border-radius: var(--radius); padding: 28px; margin-bottom: 20px; }
+  .rapide-card h2 { color: #fff; margin-bottom: 8px; }
+  .rapide-card p { color: rgba(255,255,255,0.85); margin-bottom: 16px; }
+
+  /* LISTE DOCS */
+  ul.liste { padding-left: 18px; margin: 6px 0 10px; }
+  ul.liste li { margin-bottom: 5px; font-size: 0.95rem; }
+  ul.liste li::marker { color: var(--bleu); }
+
+  table.tableau { width: 100%; border-collapse: collapse; font-size: 0.9rem; margin: 10px 0; }
+  table.tableau th { background: var(--bleu); color: #fff; padding: 8px 12px; text-align: left; }
+  table.tableau td { padding: 7px 12px; border-bottom: 1px solid #e2e8f0; }
+  table.tableau tr:hover td { background: #f0f4f8; }
+
+  .divider { border: none; border-top: 1.5px solid #e2e8f0; margin: 18px 0; }
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="nav-inner">
+    <div class="nav-title">⚔️ <span>Guerre Froide</span> — Révision</div>
+    <button class="nav-btn active" onclick="showPage('accueil', this)">🏠 Accueil</button>
+    <button class="nav-btn" onclick="showPage('cours', this)">📚 Cours</button>
+    <button class="nav-btn" onclick="showPage('chronologie', this)">📅 Chronologie</button>
+    <button class="nav-btn" onclick="showPage('exercices', this)">🧠 Exercices</button>
+    <button class="nav-btn" onclick="showPage('flashcards', this)">🃏 Flashcards</button>
+    <button class="nav-btn" onclick="showPage('resultats', this)">📊 Résultats</button>
+  </div>
+</nav>
+
+<main>
+
+<!-- ==================== ACCUEIL ==================== -->
+<div id="page-accueil" class="page active">
+  <div class="hero">
+    <h1>La Guerre Froide</h1>
+    <p>Application de révision interactive pour le collège et le lycée. Mémorisez les dates, événements, doctrines et acteurs clés des relations internationales de 1947 à aujourd'hui.</p>
+    <div class="hero-cards">
+      <div class="hero-card" onclick="showPage('cours', document.querySelectorAll('.nav-btn')[1])">
+        <div class="ico">📚</div>
+        <div class="titre">Cours complet</div>
+        <div class="desc">Toutes les notions clés organisées par thème</div>
+      </div>
+      <div class="hero-card" onclick="showPage('chronologie', document.querySelectorAll('.nav-btn')[2])">
+        <div class="ico">📅</div>
+        <div class="titre">Chronologie</div>
+        <div class="desc">Les dates essentielles en un coup d'œil</div>
+      </div>
+      <div class="hero-card" onclick="showPage('exercices', document.querySelectorAll('.nav-btn')[3])">
+        <div class="ico">🧠</div>
+        <div class="titre">Exercices</div>
+        <div class="desc">QCM, Vrai/Faux, textes à trous, associations</div>
+      </div>
+      <div class="hero-card" onclick="showPage('flashcards', document.querySelectorAll('.nav-btn')[4])">
+        <div class="ico">🃏</div>
+        <div class="titre">Flashcards</div>
+        <div class="desc">Mémorisez notions et définitions</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card rapide-card">
+    <h2>⚡ Réviser rapidement</h2>
+    <p>Besoin d'un coup de pouce express ? Voici les 5 points essentiels à retenir :</p>
+    <ul class="liste" style="color:#fff;padding-left:20px;">
+      <li><strong>1947</strong> — Début officiel de la Guerre froide : doctrine Truman, plan Marshall, doctrine Jdanov</li>
+      <li><strong>Bloc occidental (USA)</strong> vs <strong>Bloc soviétique (URSS)</strong> — rivalité idéologique, jamais de guerre directe</li>
+      <li><strong>Crises majeures</strong> : Corée (1950), Cuba (1962), Vietnam (1955-1975)</li>
+      <li><strong>Détente</strong> (années 1970) puis <strong>regain de tensions</strong> (années 1980)</li>
+      <li><strong>1989-1991</strong> — Chute du mur de Berlin, dissolution de l'URSS → fin de la Guerre froide</li>
+    </ul>
+  </div>
+</div>
+
+<!-- ==================== COURS ==================== -->
+<div id="page-cours" class="page">
+
+  <!-- Section 1 -->
+  <div class="card">
+    <div class="section-cours">
+      <div class="section-header">
+        <span class="section-icon">🌍</span>
+        <h2 style="margin:0">1. Les origines de la Guerre froide (1945-1947)</h2>
+        <button class="toggle-btn" onclick="toggleSection('s1')">Masquer</button>
+      </div>
+      <div id="s1" class="section-content">
+        <h3>Le monde après 1945</h3>
+        <p>La <span class="motcle">Seconde Guerre mondiale</span> (1939-1945) laisse l'Europe dévastée. Deux superpuissances émergent : les <span class="motcle">États-Unis</span> (capitalisme, démocratie libérale) et l'<span class="motcle">URSS</span> (communisme, régime soviétique). Leurs visions du monde s'opposent radicalement.</p>
+        <h3>La conférence de Yalta (février 1945)</h3>
+        <p>Roosevelt, Churchill et Staline se réunissent à Yalta pour organiser le monde d'après-guerre. Ils décident du partage de l'Allemagne en zones d'occupation et de la création de l'<span class="motcle">ONU</span>. Dès la fin de la guerre, des tensions apparaissent sur le sort de l'Europe de l'Est.</p>
+        <h3>1947 : le tournant</h3>
+        <p>En 1947, la rupture est consommée. Deux doctrines s'affrontent :</p>
+        <ul class="liste">
+          <li><span class="motcle">Doctrine Truman</span> (mars 1947) : le président américain Truman s'engage à soutenir tous les peuples libres résistant au communisme. C'est la politique d'<em>endiguement</em> (containment).</li>
+          <li><span class="motcle">Doctrine Jdanov</span> (septembre 1947) : le soviétique Jdanov affirme que le monde est divisé en deux camps : impérialiste (USA) et anti-impérialiste (URSS). Réponse soviétique à Truman.</li>
+        </ul>
+        <h3>Le plan Marshall et le Kominform</h3>
+        <p>Le <span class="motcle">plan Marshall</span> (1947) est une aide économique américaine massive à l'Europe occidentale ravagée par la guerre. L'URSS refuse et interdit aux pays sous son influence d'accepter cette aide. En réponse, elle crée le <span class="motcle">Kominform</span> (1947), organisation de coordination des partis communistes européens.</p>
+        <div style="margin-top:12px">
+          <span class="badge badge-bleu">USA : capitalisme + démocratie</span>
+          <span class="badge badge-rouge">URSS : communisme + parti unique</span>
+          <span class="badge badge-or">1947 : année clé</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Section 2 -->
+  <div class="card">
+    <div class="section-cours rouge">
+      <div class="section-header">
+        <span class="section-icon">💣</span>
+        <h2 style="margin:0">2. Les grandes phases (1947-1991)</h2>
+        <button class="toggle-btn" onclick="toggleSection('s2')">Masquer</button>
+      </div>
+      <div id="s2" class="section-content">
+        <h3>Phase 1 — Tensions (1947-1953)</h3>
+        <p>Mise en place des blocs. <span class="motcle">Blocus de Berlin</span> (1948-49) : l'URSS bloque les accès terrestres à Berlin-Ouest. Les Occidentaux ripostent par un pont aérien. Création de l'<span class="motcle">OTAN</span> (1949, alliance militaire occidentale) et du <span class="motcle">Pacte de Varsovie</span> (1955, alliance soviétique). La <span class="motcle">bombe atomique</span> soviétique (1949) marque le début de la course aux armements.</p>
+        <h3>Phase 2 — Crises (1950-1962)</h3>
+        <p>Période des grandes crises : <span class="motcle">guerre de Corée</span> (1950-53), crise de Suez (1956), <span class="motcle">construction du mur de Berlin</span> (1961), <span class="motcle">crise des missiles de Cuba</span> (octobre 1962). Cette dernière, la plus dangereuse, faillit déclencher une guerre nucléaire.</p>
+        <h3>Phase 3 — La Détente (1963-1979)</h3>
+        <p>Après Cuba, les deux superpuissances cherchent à éviter l'escalade nucléaire. C'est la <span class="motcle">Détente</span> : dialogue, accords de limitation des armements (<span class="motcle">SALT I</span> en 1972, <span class="motcle">SALT II</span> en 1979). Le téléphone rouge relie la Maison Blanche au Kremlin. Les <span class="motcle">accords d'Helsinki</span> (1975) reconnaissent les frontières européennes.</p>
+        <h3>Phase 4 — Regain de tensions (1979-1985)</h3>
+        <p>L'invasion soviétique de l'<span class="motcle">Afghanistan</span> (1979) relance la Guerre froide. Reagan parle d'« Empire du mal » pour désigner l'URSS. Déploiement de missiles en Europe, projet <span class="motcle">IDS</span> (guerre des étoiles). Boycott mutuel des JO (Moscou 1980, Los Angeles 1984).</p>
+        <h3>Phase 5 — La fin (1985-1991)</h3>
+        <p>Arrivée de <span class="motcle">Gorbatchev</span> au pouvoir en URSS (1985). Il lance la <span class="motcle">Glasnost</span> (transparence) et la <span class="motcle">Perestroïka</span> (restructuration économique). Les démocraties populaires s'effondrent. Le <span class="motcle">mur de Berlin</span> tombe le <strong>9 novembre 1989</strong>. L'URSS se dissout le <strong>25 décembre 1991</strong>.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Section 3 -->
+  <div class="card">
+    <div class="section-cours or">
+      <div class="section-header">
+        <span class="section-icon">🔥</span>
+        <h2 style="margin:0">3. Les crises et conflits majeurs</h2>
+        <button class="toggle-btn" onclick="toggleSection('s3')">Masquer</button>
+      </div>
+      <div id="s3" class="section-content">
+        <table class="tableau">
+          <tr><th>Crise / Conflit</th><th>Dates</th><th>Résultat</th></tr>
+          <tr><td>Blocus de Berlin</td><td>1948-1949</td><td>Échec soviétique, pont aérien occidental</td></tr>
+          <tr><td>Guerre de Corée</td><td>1950-1953</td><td>Statu quo, division au 38e parallèle</td></tr>
+          <tr><td>Crise de Suez</td><td>1956</td><td>Retrait franco-britannique, victoire diplomatique Nasser</td></tr>
+          <tr><td>Construction du mur de Berlin</td><td>1961</td><td>Séparation durable des deux Allemagnes</td></tr>
+          <tr><td>Crise des missiles de Cuba</td><td>1962</td><td>Retrait soviétique des missiles, détente partielle</td></tr>
+          <tr><td>Guerre du Vietnam</td><td>1955-1975</td><td>Victoire nord-vietnamienne, réunification sous régime communiste</td></tr>
+          <tr><td>Invasion de l'Afghanistan</td><td>1979-1989</td><td>Retrait soviétique, humiliation de l'URSS</td></tr>
+        </table>
+        <h3>La course aux armements</h3>
+        <p>Les deux superpuissances développent des arsenaux nucléaires colossaux. La doctrine de la <span class="motcle">MAD</span> (Mutually Assured Destruction) garantit que toute attaque nucléaire entraîne la destruction mutuelle, ce qui paradoxalement maintient la paix entre les deux blocs.</p>
+        <h3>La conquête spatiale</h3>
+        <p>La compétition s'étend à l'espace : <span class="motcle">Spoutnik</span> (URSS, 1957), premier être vivant dans l'espace (Laïka, 1957), <span class="motcle">Gagarine</span> (1er homme dans l'espace, URSS, 1961), <span class="motcle">Armstrong</span> (1er homme sur la Lune, USA, 1969).</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Section 4 -->
+  <div class="card">
+    <div class="section-cours vert">
+      <div class="section-header">
+        <span class="section-icon">🌐</span>
+        <h2 style="margin:0">4. Fin de la Guerre froide et monde depuis 1991</h2>
+        <button class="toggle-btn" onclick="toggleSection('s4')">Masquer</button>
+      </div>
+      <div id="s4" class="section-content">
+        <h3>La chute du mur de Berlin (9 novembre 1989)</h3>
+        <p>Symbole fort de la fin de la Guerre froide. Pendant 28 ans, le mur avait séparé Berlin-Est (soviétique) de Berlin-Ouest (occidental). Sous la pression populaire et les réformes de Gorbatchev, la RDA ouvre ses frontières. Des milliers de Berlinois détruisent le mur à coups de marteau.</p>
+        <h3>La dissolution de l'URSS (25 décembre 1991)</h3>
+        <p>Les républiques soviétiques proclament leur indépendance. Gorbatchev démissionne. L'URSS est remplacée par la <span class="motcle">CEI</span> (Communauté des États Indépendants). La Russie hérite du siège de l'URSS à l'ONU.</p>
+        <h3>Un monde unipolaire (1991-2001)</h3>
+        <p>Les États-Unis deviennent la seule hyperpuissance mondiale. Ils interviennent militairement en Irak (1991, guerre du Golfe), en Somalie, en ex-Yougoslavie. On parle de <span class="motcle">moment unipolaire</span>.</p>
+        <h3>Vers un monde multipolaire</h3>
+        <p>Depuis le début du XXIe siècle, de nouvelles puissances émergent : <span class="motcle">Chine</span>, <span class="motcle">Inde</span>, <span class="motcle">Brésil</span>, Russie (qui tente de retrouver son influence). Les attentats du <span class="motcle">11 septembre 2001</span> reconfigurent les relations internationales. On parle d'un monde <span class="motcle">multipolaire</span> ou <span class="motcle">multilatéral</span>.</p>
+        <h3>Nouvelles tensions (XXIe siècle)</h3>
+        <p>Les tensions russo-occidentales renaissent avec la guerre en Ukraine (2022). La rivalité sino-américaine structure de plus en plus les relations internationales.</p>
+        <div style="margin-top:12px">
+          <span class="badge badge-vert">1989 : Chute du mur</span>
+          <span class="badge badge-vert">1991 : Fin de l'URSS</span>
+          <span class="badge badge-bleu">Monde multipolaire</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Notions clés -->
+  <div class="card">
+    <h2>📖 Notions et mots-clés essentiels</h2>
+    <table class="tableau">
+      <tr><th>Terme</th><th>Définition</th></tr>
+      <tr><td><strong>Guerre froide</strong></td><td>Conflit idéologique et géopolitique entre USA et URSS (1947-1991), sans affrontement militaire direct</td></tr>
+      <tr><td><strong>Endiguement (containment)</strong></td><td>Stratégie américaine visant à empêcher l'expansion du communisme</td></tr>
+      <tr><td><strong>Équilibre de la terreur</strong></td><td>Dissuasion nucléaire mutuelle entre les deux blocs</td></tr>
+      <tr><td><strong>Tiers-Monde</strong></td><td>Pays non alignés sur l'un ou l'autre bloc, souvent décolonisés</td></tr>
+      <tr><td><strong>Non-alignement</strong></td><td>Mouvement de pays refusant d'appartenir à l'un des deux blocs (conférence de Bandung, 1955)</td></tr>
+      <tr><td><strong>Détente</strong></td><td>Période de dialogue et de coexistence pacifique (années 1970)</td></tr>
+      <tr><td><strong>Perestroïka</strong></td><td>Restructuration économique de l'URSS sous Gorbatchev</td></tr>
+      <tr><td><strong>Glasnost</strong></td><td>Politique de transparence et d'ouverture sous Gorbatchev</td></tr>
+      <tr><td><strong>MAD</strong></td><td>Mutual Assured Destruction : doctrine de destruction mutuelle assurée</td></tr>
+      <tr><td><strong>Coexistence pacifique</strong></td><td>Doctrine soviétique (Khrouchtchev) admettant la possibilité de vivre en paix avec le camp capitaliste</td></tr>
+    </table>
+  </div>
+</div>
+
+<!-- ==================== CHRONOLOGIE ==================== -->
+<div id="page-chronologie" class="page">
+  <div class="card">
+    <h2>📅 Chronologie interactive</h2>
+    <div class="timeline">
+      <div class="tl-item"><span class="tl-dot"></span><span class="tl-year">1945</span> — <span class="tl-event">Fin de la Seconde Guerre mondiale. Conférence de Yalta, création de l'ONU.</span></div>
+      <div class="tl-item"><span class="tl-dot rouge"></span><span class="tl-year">1947</span> — <span class="tl-event"><strong>Début officiel de la Guerre froide.</strong> Doctrine Truman (mars), Plan Marshall (juin), Doctrine Jdanov (sept.), création du Kominform.</span></div>
+      <div class="tl-item"><span class="tl-dot rouge"></span><span class="tl-year">1948-49</span> — <span class="tl-event">Blocus de Berlin par l'URSS. Pont aérien occidental. Création de la RFA et de la RDA.</span></div>
+      <div class="tl-item"><span class="tl-dot"></span><span class="tl-year">1949</span> — <span class="tl-event">Création de l'OTAN. Première bombe atomique soviétique. Victoire de Mao en Chine.</span></div>
+      <div class="tl-item"><span class="tl-dot rouge"></span><span class="tl-year">1950-53</span> — <span class="tl-event">Guerre de Corée. Intervention de l'ONU (armée US) et de la Chine. Armistice au 38e parallèle.</span></div>
+      <div class="tl-item"><span class="tl-dot or"></span><span class="tl-year">1953</span> — <span class="tl-event">Mort de Staline. Khrouchtchev prend le pouvoir. Dégel relatif.</span></div>
+      <div class="tl-item"><span class="tl-dot or"></span><span class="tl-year">1955</span> — <span class="tl-event">Création du Pacte de Varsovie. Conférence de Bandung (non-alignement).</span></div>
+      <div class="tl-item"><span class="tl-dot rouge"></span><span class="tl-year">1957</span> — <span class="tl-event">Spoutnik (1er satellite artificiel soviétique). Début de la course à l'espace.</span></div>
+      <div class="tl-item"><span class="tl-dot rouge"></span><span class="tl-year">1961</span> — <span class="tl-event">Construction du mur de Berlin (13 août). Gagarine, 1er homme dans l'espace.</span></div>
+      <div class="tl-item"><span class="tl-dot rouge"></span><span class="tl-year">1962</span> — <span class="tl-event"><strong>Crise des missiles de Cuba.</strong> 13 jours de tension nucléaire. Kennedy vs Khrouchtchev.</span></div>
+      <div class="tl-item"><span class="tl-dot or"></span><span class="tl-year">1963</span> — <span class="tl-event">Traité d'interdiction des essais nucléaires. Téléphone rouge Moscou-Washington.</span></div>
+      <div class="tl-item"><span class="tl-dot or"></span><span class="tl-year">1969</span> — <span class="tl-event">Apollo 11 : Armstrong et Aldrin marchent sur la Lune (USA).</span></div>
+      <div class="tl-item"><span class="tl-dot vert"></span><span class="tl-year">1972</span> — <span class="tl-event">Accords SALT I. Visite de Nixon à Moscou et Pékin. Début de la Détente.</span></div>
+      <div class="tl-item"><span class="tl-dot vert"></span><span class="tl-year">1975</span> — <span class="tl-event">Accords d'Helsinki. Fin de la guerre du Vietnam (réunification sous régime communiste).</span></div>
+      <div class="tl-item"><span class="tl-dot rouge"></span><span class="tl-year">1979</span> — <span class="tl-event">Invasion soviétique de l'Afghanistan. SALT II signé mais non ratifié. Relance des tensions.</span></div>
+      <div class="tl-item"><span class="tl-dot rouge"></span><span class="tl-year">1983</span> — <span class="tl-event">Reagan annonce l'IDS (Initiative de Défense Stratégique, "guerre des étoiles").</span></div>
+      <div class="tl-item"><span class="tl-dot vert"></span><span class="tl-year">1985</span> — <span class="tl-event">Gorbatchev au pouvoir en URSS. Glasnost et Perestroïka. Négociations avec Reagan.</span></div>
+      <div class="tl-item"><span class="tl-dot vert"></span><span class="tl-year">1989</span> — <span class="tl-event"><strong>Chute du mur de Berlin (9 novembre).</strong> Révolutions dans les démocraties populaires d'Europe de l'Est.</span></div>
+      <div class="tl-item"><span class="tl-dot vert"></span><span class="tl-year">1991</span> — <span class="tl-event"><strong>Dissolution de l'URSS (25 décembre).</strong> Gorbatchev démissionne. Fin de la Guerre froide.</span></div>
+      <div class="tl-item"><span class="tl-dot or"></span><span class="tl-year">2001</span> — <span class="tl-event">Attentats du 11 septembre. Recomposition des relations internationales.</span></div>
+      <div class="tl-item"><span class="tl-dot or"></span><span class="tl-year">2022</span> — <span class="tl-event">Invasion de l'Ukraine par la Russie. Retour des tensions est-ouest.</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== EXERCICES ==================== -->
+<div id="page-exercices" class="page">
+  <div class="card" style="margin-bottom:14px">
+    <h2>🧠 Exercices interactifs</h2>
+    <div class="level-btns">
+      <button class="level-btn facile active" onclick="setLevel('facile', this)">😊 Facile</button>
+      <button class="level-btn moyen" onclick="setLevel('moyen', this)">🤔 Moyen</button>
+      <button class="level-btn difficile" onclick="setLevel('difficile', this)">🔥 Difficile</button>
+    </div>
+    <div class="exo-tabs">
+      <button class="exo-tab active" onclick="showExoTab('qcm', this)">QCM</button>
+      <button class="exo-tab" onclick="showExoTab('vf', this)">Vrai / Faux</button>
+      <button class="exo-tab" onclick="showExoTab('trous', this)">Texte à trous</button>
+      <button class="exo-tab" onclick="showExoTab('assoc', this)">Associations</button>
+    </div>
+
+    <!-- QCM -->
+    <div id="exo-qcm">
+      <div id="qcm-container"></div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:10px">
+        <button class="btn btn-primary" onclick="nextQuestion()">Question suivante ➜</button>
+        <button class="btn btn-secondary" onclick="randomQuestion()">🔀 Aléatoire</button>
+      </div>
+    </div>
+
+    <!-- VRAI/FAUX -->
+    <div id="exo-vf" style="display:none">
+      <div id="vf-container"></div>
+      <div style="margin-top:10px">
+        <button class="btn btn-primary" onclick="nextVF()">Question suivante ➜</button>
+      </div>
+    </div>
+
+    <!-- TEXTE A TROUS -->
+    <div id="exo-trous" style="display:none">
+      <div id="trous-container"></div>
+      <div style="margin-top:10px;display:flex;gap:10px;flex-wrap:wrap">
+        <button class="btn btn-primary" onclick="checkTrous()">✅ Vérifier</button>
+        <button class="btn btn-secondary" onclick="nextTrous()">Question suivante ➜</button>
+      </div>
+    </div>
+
+    <!-- ASSOCIATIONS -->
+    <div id="exo-assoc" style="display:none">
+      <div id="assoc-container"></div>
+      <div style="margin-top:10px">
+        <button class="btn btn-secondary" onclick="newAssoc()">🔄 Nouveau jeu</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Score live -->
+  <div class="card">
+    <h2>📊 Score en direct</h2>
+    <div class="score-display">
+      <div class="score-stat"><div class="val" id="sc-total">0</div><div class="lbl">Questions</div></div>
+      <div class="score-stat"><div class="val" id="sc-ok" style="color:var(--vert)">0</div><div class="lbl">Correctes</div></div>
+      <div class="score-stat"><div class="val" id="sc-ko" style="color:var(--rouge)">0</div><div class="lbl">Incorrectes</div></div>
+      <div class="score-stat"><div class="val" id="sc-pct">—</div><div class="lbl">Score</div></div>
+    </div>
+    <div class="score-bar-wrap"><div class="score-bar" id="score-bar" style="width:0%"></div></div>
+    <div class="progress-msg" id="progress-msg">Commencez à répondre pour voir votre progression !</div>
+    <div style="margin-top:12px"><button class="btn btn-rouge" onclick="resetScore()">🔄 Réinitialiser le score</button></div>
+  </div>
+</div>
+
+<!-- ==================== FLASHCARDS ==================== -->
+<div id="page-flashcards" class="page">
+  <div class="card">
+    <h2>🃏 Flashcards — Cliquez pour retourner la carte</h2>
+    <div style="margin-bottom:16px;display:flex;gap:10px;flex-wrap:wrap">
+      <button class="btn btn-primary" onclick="prevFlash()">⬅ Précédente</button>
+      <button class="btn btn-secondary" onclick="shuffleFlash()">🔀 Mélanger</button>
+      <button class="btn btn-primary" onclick="nextFlash()">Suivante ➜</button>
+    </div>
+    <div id="flash-counter" style="font-size:0.88rem;color:var(--gris-fonce);margin-bottom:12px"></div>
+    <div class="flashcard-wrap">
+      <div class="flashcard" id="flashcard" onclick="flipCard()">
+        <div class="card-face card-front" id="flash-front"></div>
+        <div class="card-face card-back" id="flash-back"></div>
+      </div>
+    </div>
+    <div class="flashcard-hint">👆 Cliquez sur la carte pour voir la réponse</div>
+  </div>
+</div>
+
+<!-- ==================== RÉSULTATS ==================== -->
+<div id="page-resultats" class="page">
+  <div class="card">
+    <h2>📊 Tableau de bord</h2>
+    <div class="score-display">
+      <div class="score-stat"><div class="val" id="r-total">0</div><div class="lbl">Total réponses</div></div>
+      <div class="score-stat"><div class="val" id="r-ok" style="color:var(--vert)">0</div><div class="lbl">Correctes</div></div>
+      <div class="score-stat"><div class="val" id="r-ko" style="color:var(--rouge)">0</div><div class="lbl">Incorrectes</div></div>
+      <div class="score-stat"><div class="val" id="r-pct">—</div><div class="lbl">Score global</div></div>
+    </div>
+    <div class="score-bar-wrap"><div class="score-bar" id="r-bar" style="width:0%"></div></div>
+    <div class="progress-msg" id="r-msg" style="margin-top:14px">Faites des exercices pour voir vos résultats ici !</div>
+  </div>
+  <div class="card">
+    <h2>💡 Conseils personnalisés</h2>
+    <div id="conseils">
+      <p>Répondez à quelques questions pour obtenir des conseils personnalisés.</p>
+    </div>
+  </div>
+  <div class="card">
+    <h2>🏆 Points à mémoriser en priorité</h2>
+    <ul class="liste">
+      <li><strong>1947</strong> — Doctrines Truman et Jdanov, plan Marshall, création du Kominform</li>
+      <li><strong>1949</strong> — Bombe soviétique, OTAN, République populaire de Chine</li>
+      <li><strong>1961</strong> — Mur de Berlin, Gagarine dans l'espace</li>
+      <li><strong>1962</strong> — Crise des missiles de Cuba (la plus dangereuse)</li>
+      <li><strong>1969</strong> — Homme sur la Lune (Neil Armstrong)</li>
+      <li><strong>1972</strong> — SALT I, Détente, visite de Nixon à Moscou</li>
+      <li><strong>1985</strong> — Gorbatchev, Glasnost, Perestroïka</li>
+      <li><strong>9 nov. 1989</strong> — Chute du mur de Berlin</li>
+      <li><strong>25 déc. 1991</strong> — Dissolution de l'URSS, fin de la Guerre froide</li>
+    </ul>
+  </div>
+</div>
+
+</main>
+
+<script>
+// ============================================================
+// DONNÉES
+// ============================================================
+
+const questionsQCM = {
+  facile: [
+    { q: "Quelle doctrine américaine de 1947 vise à endiguer le communisme ?", opts: ["Doctrine Monroe", "Doctrine Truman", "Doctrine Eisenhower", "Plan Marshall"], r: 1, expl: "La doctrine Truman (mars 1947) engage les USA à soutenir tout peuple résistant au communisme." },
+    { q: "Quelle est la date de la chute du mur de Berlin ?", opts: ["3 octobre 1990", "9 novembre 1989", "25 décembre 1991", "8 mai 1945"], r: 1, expl: "Le mur de Berlin est tombé le 9 novembre 1989." },
+    { q: "Quel sigle désigne l'alliance militaire occidentale créée en 1949 ?", opts: ["ONU", "URSS", "OTAN", "CEE"], r: 2, expl: "L'OTAN (Organisation du Traité de l'Atlantique Nord) est créée en 1949 sous leadership américain." },
+    { q: "Qui est le premier homme à marcher sur la Lune (1969) ?", opts: ["Youri Gagarine", "Buzz Aldrin", "Neil Armstrong", "John Glenn"], r: 2, expl: "Neil Armstrong est le premier homme à marcher sur la Lune le 21 juillet 1969." },
+    { q: "Quelle année l'URSS est-elle dissoute ?", opts: ["1989", "1990", "1991", "1992"], r: 2, expl: "L'URSS se dissout officiellement le 25 décembre 1991." },
+    { q: "Quel événement marque le début de la course à l'espace en 1957 ?", opts: ["Lancement d'Apollo 11", "Lancement de Spoutnik", "Vol de Gagarine", "Marche sur la Lune"], r: 1, expl: "Le lancement du satellite soviétique Spoutnik en 1957 lance la course à l'espace." },
+    { q: "Que représentent les deux blocs de la Guerre froide ?", opts: ["Capitalisme vs Fascisme", "Capitalisme vs Communisme", "Démocratie vs Monarchie", "Europe vs Asie"], r: 1, expl: "La Guerre froide oppose le bloc occidental (capitalisme, USA) au bloc soviétique (communisme, URSS)." },
+    { q: "Quel est le nom du plan d'aide économique américain à l'Europe (1947) ?", opts: ["Plan Schuman", "Plan Marshall", "Plan Truman", "Plan Jdanov"], r: 1, expl: "Le plan Marshall offre une aide économique massive à l'Europe occidentale dévastée." },
+  ],
+  moyen: [
+    { q: "Quelle doctrine soviétique de 1947 répond à la doctrine Truman ?", opts: ["Doctrine Molotov", "Doctrine Brejnev", "Doctrine Jdanov", "Doctrine Lénine"], r: 2, expl: "La doctrine Jdanov (sept. 1947) affirme la division du monde en deux camps : impérialiste et anti-impérialiste." },
+    { q: "En quelle année commence la construction du mur de Berlin ?", opts: ["1958", "1959", "1960", "1961"], r: 3, expl: "La construction du mur de Berlin débute dans la nuit du 12 au 13 août 1961." },
+    { q: "Que signifie l'acronyme MAD ?", opts: ["Mouvement Anti-Démocratie", "Mutually Assured Destruction", "Military Advanced Defense", "Modern Arms Deal"], r: 1, expl: "MAD (Mutually Assured Destruction) désigne la doctrine de destruction mutuelle assurée, fondement de la dissuasion nucléaire." },
+    { q: "Quelle conférence de 1955 fonde le mouvement des non-alignés ?", opts: ["Conférence de Yalta", "Conférence de Potsdam", "Conférence de Bandung", "Conférence de Genève"], r: 2, expl: "La conférence de Bandung (1955) réunit des pays d'Asie et d'Afrique refusant d'appartenir à l'un des deux blocs." },
+    { q: "Que désigne la 'Détente' dans la Guerre froide ?", opts: ["Un conflit armé entre USA et URSS", "Une période de dialogue et de coexistence pacifique", "La course aux armements", "L'invasion d'un pays neutre"], r: 1, expl: "La Détente (années 1970) est une période de dialogue, d'accords et de coexistence entre les deux superpuissances." },
+    { q: "Qui était au pouvoir en URSS lors des réformes de Glasnost et Perestroïka ?", opts: ["Staline", "Khrouchtchev", "Brejnev", "Gorbatchev"], r: 3, expl: "Mikhaïl Gorbatchev lance la Glasnost (transparence) et la Perestroïka (restructuration) à partir de 1985." },
+    { q: "Quelle crise de 1962 a failli déclencher une guerre nucléaire ?", opts: ["Crise de Suez", "Crise de Berlin", "Crise des missiles de Cuba", "Crise de Corée"], r: 2, expl: "La crise des missiles de Cuba (octobre 1962) est considérée comme le moment le plus dangereux de la Guerre froide." },
+    { q: "Quel accord de 1972 limite les armements stratégiques ?", opts: ["SALT I", "OTAN", "Helsinki", "Kominform"], r: 0, expl: "SALT I (Strategic Arms Limitation Talks), signé en 1972, limite les arsenaux nucléaires des deux superpuissances." },
+  ],
+  difficile: [
+    { q: "Quelle organisation soviétique de 1947 coordonne les partis communistes européens ?", opts: ["Komintern", "Kominform", "Comecon", "Pacte de Varsovie"], r: 1, expl: "Le Kominform (Bureau d'Information des partis communistes) est créé en septembre 1947 en réponse au Plan Marshall." },
+    { q: "Quelle est la politique américaine de 'rollback' (refoulement) prônée par ?", opts: ["Truman", "Eisenhower (Dulles)", "Kennedy", "Nixon"], r: 1, expl: "Le secrétaire d'État John Foster Dulles sous Eisenhower prône le 'rollback' : repousser activement le communisme (versus simple endiguement)." },
+    { q: "Quel dirigeant soviétique dénonce le 'culte de la personnalité' de Staline en 1956 ?", opts: ["Brejnev", "Molotov", "Khrouchtchev", "Andropov"], r: 2, expl: "Lors du XXe Congrès du PCUS (1956), Khrouchtchev dénonce les crimes de Staline dans son rapport secret." },
+    { q: "La doctrine Brejnev affirme le droit de l'URSS à intervenir dans quel cas ?", opts: ["Invasion capitaliste d'un État communiste", "Coup d'État pro-américain", "Révolution dans un pays communiste allié", "Les trois cas précédents"], r: 3, expl: "La doctrine Brejnev (1968) justifie l'intervention soviétique pour défendre le socialisme dans les pays frères (appliquée lors de l'invasion de la Tchécoslovaquie)." },
+    { q: "Quel accord de 1975 reconnaît les frontières européennes issues de 1945 ?", opts: ["Accords SALT II", "Accords d'Helsinki", "Traité de Rome", "Accords de Yalta"], r: 1, expl: "Les accords d'Helsinki (1975) reconnaissent les frontières européennes et incluent des engagements sur les droits de l'homme." },
+    { q: "Quel pays est à l'origine de la doctrine du 'containment' rédigée par George Kennan ?", opts: ["France", "Royaume-Uni", "États-Unis", "Allemagne de l'Ouest"], r: 2, expl: "George Kennan, diplomate américain, est le théoricien de l'endiguement (containment) dans son fameux 'Long Telegram' de 1946." },
+    { q: "Quelle organisation économique soviétique répond au plan Marshall ?", opts: ["Kominform", "Pacte de Varsovie", "Comecon (CAEM)", "CEI"], r: 2, expl: "Le Comecon (Conseil d'Aide Économique Mutuelle, CAEM), créé en 1949, coordonne les économies du bloc soviétique." },
+  ]
+};
+
+const questionsVF = {
+  facile: [
+    { q: "La Guerre froide est une guerre directe entre USA et URSS.", r: false, expl: "Non, la Guerre froide est une rivalité sans affrontement militaire direct entre les deux superpuissances." },
+    { q: "Le mur de Berlin a été construit en 1961.", r: true, expl: "Oui, le mur est construit dans la nuit du 12 au 13 août 1961." },
+    { q: "Les États-Unis ont développé la première bombe atomique.", r: true, expl: "Oui, les USA ont lancé les deux premières bombes atomiques en 1945 (Hiroshima et Nagasaki)." },
+    { q: "L'URSS a créé l'OTAN en 1949.", r: false, expl: "Non, l'OTAN est une alliance militaire occidentale créée par les USA et leurs alliés en 1949. L'URSS crée le Pacte de Varsovie en 1955." },
+    { q: "Youri Gagarine est le premier homme à avoir marché sur la Lune.", r: false, expl: "Non, Gagarine est le premier homme dans l'espace (1961). Neil Armstrong est le premier sur la Lune (1969)." },
+  ],
+  moyen: [
+    { q: "La doctrine Jdanov propose une aide économique aux pays alliés de l'URSS.", r: false, expl: "Non, c'est le plan Marshall qui propose une aide économique (américaine). La doctrine Jdanov est une réponse idéologique à la doctrine Truman." },
+    { q: "La conférence de Bandung (1955) fonde le mouvement des non-alignés.", r: true, expl: "Oui, Bandung réunit des pays d'Asie et d'Afrique refusant d'appartenir aux deux blocs." },
+    { q: "La crise des missiles de Cuba a lieu en 1963.", r: false, expl: "Non, la crise des missiles de Cuba se déroule en octobre 1962." },
+    { q: "La Perestroïka est une politique de restructuration économique soviétique.", r: true, expl: "Oui, Gorbatchev lance la Perestroïka (restructuration économique) et la Glasnost (transparence) à partir de 1985." },
+    { q: "Les accords SALT I (1972) visent à limiter la prolifération nucléaire.", r: true, expl: "Oui, les accords SALT I limitent le nombre de missiles stratégiques des deux superpuissances." },
+  ],
+  difficile: [
+    { q: "La doctrine Brejnev autorise les pays communistes à quitter librement le bloc soviétique.", r: false, expl: "C'est exactement le contraire : la doctrine Brejnev affirme le droit de l'URSS à intervenir pour empêcher un pays communiste de quitter le bloc." },
+    { q: "Le Comecon est une organisation économique soviétique en réponse au plan Marshall.", r: true, expl: "Oui, le Comecon (CAEM, 1949) coordonne les économies du bloc de l'Est en réponse au plan Marshall." },
+    { q: "Les accords d'Helsinki (1975) sont uniquement un accord sur les armements nucléaires.", r: false, expl: "Non, Helsinki aborde plusieurs domaines : frontières, droits de l'homme, coopération économique et scientifique." },
+    { q: "Reagan qualifie l'URSS d'Empire du mal en 1983.", r: true, expl: "Oui, Reagan utilise l'expression 'Empire du mal' (Evil Empire) dans un discours de 1983." },
+    { q: "La CEI (Communauté des États Indépendants) remplace directement l'URSS après 1991.", r: true, expl: "Oui, la CEI est créée en décembre 1991 pour regrouper la plupart des ex-républiques soviétiques." },
+  ]
+};
+
+const questionsTrous = {
+  facile: [
+    { avant: "La doctrine ", trou: "Truman", apres: " (1947) engage les USA à soutenir les pays menacés par le communisme.", hint: "Président américain en 1947" },
+    { avant: "Le mur de Berlin tombe le 9 novembre ", trou: "1989", apres: ".", hint: "Année en quatre chiffres" },
+    { avant: "L'OTAN est une alliance militaire créée en ", trou: "1949", apres: " sous leadership américain.", hint: "Deux ans après le début de la Guerre froide" },
+    { avant: "La politique de ", trou: "Glasnost", apres: " (transparence) est lancée par Gorbatchev.", hint: "Mot russe signifiant transparence" },
+  ],
+  moyen: [
+    { avant: "La doctrine ", trou: "Jdanov", apres: " répond à la doctrine Truman en septembre 1947.", hint: "Idéologue soviétique" },
+    { avant: "Le plan ", trou: "Marshall", apres: " (1947) est une aide économique américaine à l'Europe.", hint: "Secrétaire d'État américain" },
+    { avant: "La crise des missiles de ", trou: "Cuba", apres: " (1962) est le moment le plus dangereux de la Guerre froide.", hint: "Île des Caraïbes" },
+    { avant: "L'URSS se dissout le 25 décembre ", trou: "1991", apres: ".", hint: "Dernière année de la Guerre froide" },
+    { avant: "Le mouvement du non-", trou: "alignement", apres: " regroupe les pays refusant d'appartenir à l'un des deux blocs.", hint: "Ne pas se ranger d'un côté" },
+  ],
+  difficile: [
+    { avant: "La doctrine ", trou: "Brejnev", apres: " justifie l'intervention soviétique en Tchécoslovaquie en 1968.", hint: "Dirigeant soviétique des années 1960-80" },
+    { avant: "Le ", trou: "Kominform", apres: " est l'organisation de coordination des partis communistes créée en 1947.", hint: "Bureau d'information communiste" },
+    { avant: "L'accord ", trou: "SALT I", apres: " (1972) limite les arsenaux stratégiques américains et soviétiques.", hint: "Initiales en anglais pour limitation des armements stratégiques" },
+    { avant: "La ", trou: "Perestroïka", apres: " désigne la restructuration économique de l'URSS sous Gorbatchev.", hint: "Mot russe pour restructuration" },
+    { avant: "Les accords d'", trou: "Helsinki", apres: " (1975) reconnaissent les frontières européennes issues de 1945.", hint: "Capitale de la Finlande" },
+  ]
+};
+
+const questionsAssoc = {
+  facile: [
+    { dates: ["1947", "1961", "1969", "1991"], evts: ["Doctrine Truman", "Chute de l'URSS", "Homme sur la Lune", "Mur de Berlin construit"], pairs: [0,3,2,1] }
+  ],
+  moyen: [
+    { dates: ["1947", "1955", "1962", "1972", "1989"], evts: ["Plan Marshall", "Pacte de Varsovie", "SALT I", "Chute du mur de Berlin", "Crise de Cuba"], pairs: [0,1,4,2,3] }
+  ],
+  difficile: [
+    { dates: ["1947", "1948", "1950", "1957", "1962", "1968"], evts: ["Kominform créé", "Spoutnik", "Blocus de Berlin", "Crise des missiles de Cuba", "Printemps de Prague", "Guerre de Corée"], pairs: [0,2,5,1,3,4] }
+  ]
+};
+
+const flashcardsData = [
+  { r: "Conflit idéologique et géopolitique entre USA et URSS (1947-1991), sans affrontement direct.", f: "Qu'est-ce que la Guerre froide ?" },
+  { r: "Mars 1947 — Engagement des USA à soutenir tout peuple résistant au communisme.", f: "Doctrine Truman" },
+  { r: "Septembre 1947 — Idéologue soviétique divisant le monde en deux camps.", f: "Doctrine Jdanov" },
+  { r: "1947 — Aide économique américaine massive à l'Europe occidentale dévastée.", f: "Plan Marshall" },
+  { r: "1949 — Alliance militaire des pays occidentaux sous leadership américain.", f: "OTAN" },
+  { r: "1955 — Alliance militaire des pays du bloc soviétique, réponse à l'OTAN.", f: "Pacte de Varsovie" },
+  { r: "Octobre 1962 — 13 jours de tension nucléaire entre USA et URSS, crise la plus dangereuse.", f: "Crise des missiles de Cuba" },
+  { r: "Dissuasion : toute attaque nucléaire entraîne la destruction des deux camps.", f: "Équilibre de la terreur / MAD" },
+  { r: "Détente — Accords de limitation des armements stratégiques entre USA et URSS (1972).", f: "SALT I" },
+  { r: "Politique de transparence lancée par Gorbatchev à partir de 1985.", f: "Glasnost" },
+  { r: "Restructuration économique de l'URSS lancée par Gorbatchev à partir de 1985.", f: "Perestroïka" },
+  { r: "9 novembre 1989 — Ouverture du mur séparant Berlin-Est et Berlin-Ouest.", f: "Chute du mur de Berlin" },
+  { r: "25 décembre 1991 — Démission de Gorbatchev, fin de l'URSS, fin de la Guerre froide.", f: "Dissolution de l'URSS" },
+  { r: "1947 — Organisation de coordination des partis communistes européens créée par l'URSS.", f: "Kominform" },
+  { r: "1948-1949 — L'URSS bloque les accès terrestres à Berlin-Ouest. Réponse : pont aérien.", f: "Blocus de Berlin" },
+  { r: "1957 — Premier satellite artificiel soviétique, début de la course à l'espace.", f: "Spoutnik" },
+  { r: "1961 — Youri Gagarine est le premier homme à aller dans l'espace (URSS).", f: "Premier homme dans l'espace" },
+  { r: "1969 — Neil Armstrong et Buzz Aldrin marchent sur la Lune (USA, mission Apollo 11).", f: "Conquête de la Lune" },
+  { r: "Pays ne souhaitant appartenir ni au bloc occidental ni au bloc soviétique. Bandung 1955.", f: "Non-alignement" },
+  { r: "Période de dialogue et de coexistence entre USA et URSS dans les années 1970.", f: "La Détente" },
+];
+
+// ============================================================
+// ÉTAT GLOBAL
+// ============================================================
+let score = { total: 0, ok: 0, ko: 0 };
+let currentLevel = 'facile';
+let qcmIdx = 0;
+let vfIdx = 0;
+let trousIdx = 0;
+let flashIdx = 0;
+let flashOrder = flashcardsData.map((_,i)=>i);
+
+// ============================================================
+// NAVIGATION
+// ============================================================
+function showPage(name, btn) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('page-' + name).classList.add('active');
+  if (btn) btn.classList.add('active');
+  if (name === 'resultats') updateResultats();
+}
+
+// ============================================================
+// COURS - TOGGLE
+// ============================================================
+function toggleSection(id) {
+  const el = document.getElementById(id);
+  const btn = el.previousElementSibling.querySelector('.toggle-btn');
+  if (el.classList.contains('hidden')) {
+    el.classList.remove('hidden');
+    btn.textContent = 'Masquer';
+  } else {
+    el.classList.add('hidden');
+    btn.textContent = 'Afficher';
+  }
+}
+
+// ============================================================
+// NIVEAUX
+// ============================================================
+function setLevel(level, btn) {
+  currentLevel = level;
+  document.querySelectorAll('.level-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  qcmIdx = 0; vfIdx = 0; trousIdx = 0;
+  renderQCM(); renderVF(); renderTrous(); renderAssoc();
+}
+
+// ============================================================
+// SCORE
+// ============================================================
+function addScore(correct) {
+  score.total++;
+  if (correct) score.ok++; else score.ko++;
+  updateScoreDisplay();
+}
+function updateScoreDisplay() {
+  const pct = score.total > 0 ? Math.round(score.ok / score.total * 100) : 0;
+  ['', 'r-'].forEach(pfx => {
+    const t = document.getElementById(pfx+'total'); if(t) t.textContent = score.total;
+    const o = document.getElementById(pfx+'ok'); if(o) o.textContent = score.ok;
+    const k = document.getElementById(pfx+'ko'); if(k) k.textContent = score.ko;
+    const p = document.getElementById(pfx+'pct'); if(p) p.textContent = score.total > 0 ? pct+'%' : '—';
+    const b = document.getElementById(pfx === '' ? 'score-bar' : 'r-bar'); if(b) b.style.width = pct+'%';
+  });
+  const msgs = ['sc-', 'r-'].map(pfx => document.getElementById(pfx === 'sc-' ? 'progress-msg' : 'r-msg'));
+  let msg = '';
+  if (score.total === 0) msg = 'Commencez à répondre pour voir votre progression !';
+  else if (pct >= 90) msg = '🏆 Excellent ! Vous maîtrisez très bien la Guerre froide !';
+  else if (pct >= 70) msg = '👍 Bonne progression ! Continuez, vous y êtes presque.';
+  else if (pct >= 50) msg = '📖 Pas mal ! Relisez le cours pour consolider vos connaissances.';
+  else msg = '💪 Courage ! Revoyez le cours et les flashcards avant de retenter.';
+  msgs.forEach(m => { if(m) m.textContent = msg; });
+}
+function resetScore() {
+  score = {total:0,ok:0,ko:0};
+  updateScoreDisplay();
+}
+
+// ============================================================
+// QCM
+// ============================================================
+function renderQCM() {
+  const qs = questionsQCM[currentLevel];
+  if (!qs) return;
+  const q = qs[qcmIdx % qs.length];
+  const c = document.getElementById('qcm-container');
+  c.innerHTML = `
+    <div class="exo-question">Question ${(qcmIdx % qs.length)+1}/${qs.length} — ${q.q}</div>
+    <div class="exo-options cols2" id="qcm-opts">
+      ${q.opts.map((o,i)=>`<button class="opt-btn" onclick="answerQCM(${i})">${o}</button>`).join('')}
+    </div>
+    <div class="feedback" id="qcm-fb"></div>
+  `;
+}
+function answerQCM(idx) {
+  const qs = questionsQCM[currentLevel];
+  const q = qs[qcmIdx % qs.length];
+  const correct = idx === q.r;
+  addScore(correct);
+  const btns = document.querySelectorAll('#qcm-opts .opt-btn');
+  btns.forEach((b,i)=>{
+    b.disabled = true;
+    if(i===q.r) b.classList.add('correct');
+    else if(i===idx && !correct) b.classList.add('incorrect');
+  });
+  const fb = document.getElementById('qcm-fb');
+  fb.textContent = (correct ? '✅ Bonne réponse ! ' : '❌ Mauvaise réponse. ') + q.expl;
+  fb.className = 'feedback ' + (correct ? 'ok' : 'ko');
+}
+function nextQuestion() {
+  qcmIdx++;
+  renderQCM();
+}
+function randomQuestion() {
+  const qs = questionsQCM[currentLevel];
+  qcmIdx = Math.floor(Math.random() * qs.length);
+  renderQCM();
+}
+
+// ============================================================
+// VRAI/FAUX
+// ============================================================
+function renderVF() {
+  const qs = questionsVF[currentLevel];
+  const q = qs[vfIdx % qs.length];
+  const c = document.getElementById('vf-container');
+  c.innerHTML = `
+    <div class="exo-question">Question ${(vfIdx % qs.length)+1}/${qs.length} — ${q.q}</div>
+    <div class="vf-btns" id="vf-btns">
+      <button class="vf-btn" onclick="answerVF(true)">✅ VRAI</button>
+      <button class="vf-btn" onclick="answerVF(false)">❌ FAUX</button>
+    </div>
+    <div class="feedback" id="vf-fb"></div>
+  `;
+}
+function answerVF(val) {
+  const qs = questionsVF[currentLevel];
+  const q = qs[vfIdx % qs.length];
+  const correct = val === q.r;
+  addScore(correct);
+  const btns = document.querySelectorAll('#vf-btns .vf-btn');
+  btns.forEach(b => b.disabled = true);
+  const which = val ? 0 : 1;
+  btns[which].classList.add(correct ? 'correct' : 'incorrect');
+  if(!correct) btns[val ? 1 : 0].classList.add('correct');
+  const fb = document.getElementById('vf-fb');
+  fb.textContent = (correct ? '✅ Bonne réponse ! ' : '❌ Mauvaise réponse. ') + q.expl;
+  fb.className = 'feedback ' + (correct ? 'ok' : 'ko');
+}
+function nextVF() { vfIdx++; renderVF(); }
+
+// ============================================================
+// TEXTE À TROUS
+// ============================================================
+function renderTrous() {
+  const qs = questionsTrous[currentLevel];
+  const q = qs[trousIdx % qs.length];
+  const c = document.getElementById('trous-container');
+  c.innerHTML = `
+    <div class="exo-question">Complétez le texte :</div>
+    <p style="font-size:1.05rem;line-height:2;margin-bottom:12px">
+      ${q.avant}<input type="text" class="trous-input" id="trous-inp" placeholder="${q.hint}" autocomplete="off"><span id="trous-suffix">${q.apres}</span>
+    </p>
+    <div class="feedback" id="trous-fb"></div>
+  `;
+  document.getElementById('trous-inp').addEventListener('keydown', e => { if(e.key==='Enter') checkTrous(); });
+}
+function checkTrous() {
+  const qs = questionsTrous[currentLevel];
+  const q = qs[trousIdx % qs.length];
+  const inp = document.getElementById('trous-inp');
+  if (!inp) return;
+  const val = inp.value.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"");
+  const rep = q.trou.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"");
+  const correct = val === rep;
+  addScore(correct);
+  inp.disabled = true;
+  inp.classList.add(correct ? 'correct' : 'incorrect');
+  const fb = document.getElementById('trous-fb');
+  fb.textContent = correct ? `✅ Parfait ! "${q.trou}" est la bonne réponse.` : `❌ La bonne réponse était : "${q.trou}".`;
+  fb.className = 'feedback ' + (correct ? 'ok' : 'ko');
+}
+function nextTrous() { trousIdx++; renderTrous(); }
+
+// ============================================================
+// ASSOCIATIONS
+// ============================================================
+let assocState = { selectedLeft: null, selectedRight: null, matched: [], pairs: [] };
+
+function renderAssoc() {
+  const qs = questionsAssoc[currentLevel];
+  const q = qs[0];
+  assocState = { selectedLeft: null, selectedRight: null, matched: [], pairs: q.pairs, data: q };
+  const c = document.getElementById('assoc-container');
+  const evtsCopy = [...q.evts];
+  const shuffled = evtsCopy.map((e,i) => ({e, origIdx: i})).sort(() => Math.random()-0.5);
+  c.innerHTML = `
+    <div class="exo-question">Associez chaque date à l'événement correspondant :</div>
+    <div class="assoc-grid">
+      <div class="assoc-left" id="assoc-left">
+        ${q.dates.map((d,i) => `<div class="assoc-item" id="al-${i}" onclick="selectLeft(${i})">${d}</div>`).join('')}
+      </div>
+      <div class="assoc-right" id="assoc-right">
+        ${shuffled.map((s,i) => `<div class="assoc-item" id="ar-${s.origIdx}" data-orig="${s.origIdx}" onclick="selectRight(${s.origIdx})">${s.e}</div>`).join('')}
+      </div>
+    </div>
+    <div class="feedback" id="assoc-fb"></div>
+  `;
+  assocState.shuffled = shuffled;
+}
+
+function selectLeft(idx) {
+  if (assocState.matched.some(m=>m.left===idx)) return;
+  document.querySelectorAll('#assoc-left .assoc-item').forEach(el => el.classList.remove('selected'));
+  assocState.selectedLeft = idx;
+  document.getElementById('al-'+idx).classList.add('selected');
+  tryMatch();
+}
+function selectRight(origIdx) {
+  if (assocState.matched.some(m=>m.right===origIdx)) return;
+  document.querySelectorAll('#assoc-right .assoc-item').forEach(el => el.classList.remove('selected'));
+  assocState.selectedRight = origIdx;
+  document.getElementById('ar-'+origIdx).classList.add('selected');
+  tryMatch();
+}
+function tryMatch() {
+  if (assocState.selectedLeft === null || assocState.selectedRight === null) return;
+  const li = assocState.selectedLeft;
+  const ri = assocState.selectedRight;
+  const correct = assocState.pairs[li] === ri;
+  addScore(correct);
+  document.getElementById('al-'+li).classList.remove('selected');
+  document.getElementById('al-'+li).classList.add(correct?'matched-ok':'matched-ko');
+  document.getElementById('ar-'+ri).classList.remove('selected');
+  document.getElementById('ar-'+ri).classList.add(correct?'matched-ok':'matched-ko');
+  assocState.matched.push({left:li, right:ri});
+  assocState.selectedLeft = null; assocState.selectedRight = null;
+  if (assocState.matched.length === assocState.data.dates.length) {
+    const allOk = assocState.matched.every(m => assocState.pairs[m.left]===m.right);
+    const fb = document.getElementById('assoc-fb');
+    fb.textContent = allOk ? '🎉 Parfait ! Toutes les associations sont correctes !' : 'Terminé. Vérifiez les associations en rouge.';
+    fb.className = 'feedback ' + (allOk?'ok':'ko');
+  }
+}
+function newAssoc() { renderAssoc(); }
+
+// ============================================================
+// FLASHCARDS
+// ============================================================
+function renderFlash() {
+  const f = flashcardsData[flashOrder[flashIdx % flashOrder.length]];
+  const card = document.getElementById('flashcard');
+  card.classList.remove('flipped');
+  document.getElementById('flash-front').textContent = f.f;
+  document.getElementById('flash-back').textContent = f.r;
+  document.getElementById('flash-counter').textContent = `Carte ${(flashIdx % flashOrder.length)+1} / ${flashcardsData.length}`;
+}
+function flipCard() {
+  document.getElementById('flashcard').classList.toggle('flipped');
+}
+function nextFlash() { flashIdx++; renderFlash(); }
+function prevFlash() { flashIdx = Math.max(0, flashIdx-1); renderFlash(); }
+function shuffleFlash() {
+  flashOrder = flashOrder.sort(() => Math.random()-0.5);
+  flashIdx = 0;
+  renderFlash();
+}
+
+// ============================================================
+// RÉSULTATS
+// ============================================================
+function updateResultats() {
+  updateScoreDisplay();
+  const c = document.getElementById('conseils');
+  const pct = score.total > 0 ? Math.round(score.ok/score.total*100) : -1;
+  if(pct < 0) { c.innerHTML='<p>Faites des exercices pour obtenir des conseils personnalisés.</p>'; return; }
+  let html = '<ul class="liste">';
+  if(pct < 50) html += '<li>Commencez par relire le cours complet, section par section.</li><li>Utilisez les flashcards chaque jour pour mémoriser les dates clés.</li><li>Faites les exercices de niveau Facile en priorité.</li>';
+  else if(pct < 75) html += '<li>Vous progressez bien ! Consolidez les dates avec la chronologie interactive.</li><li>Passez au niveau Moyen pour vous challenger davantage.</li><li>Révisez les notions que vous confondez (Glasnost/Perestroïka, doctrines Truman/Jdanov).</li>';
+  else html += '<li>Excellent niveau ! Essayez les exercices Difficile pour vous perfectionner.</li><li>Approfondissez les nuances : doctrine Brejnev, Kominform, SALT I vs SALT II.</li><li>Préparez des réponses développées sur les causes de la fin de la Guerre froide.</li>';
+  html += '</ul>';
+  c.innerHTML = html;
+}
+
+// ============================================================
+// INIT
+// ============================================================
+function initExoTabs() {
+  renderQCM(); renderVF(); renderTrous(); renderAssoc(); renderFlash();
+}
+
+function showExoTab(name, btn) {
+  ['qcm','vf','trous','assoc'].forEach(t => {
+    document.getElementById('exo-'+t).style.display = t===name?'block':'none';
+  });
+  document.querySelectorAll('.exo-tab').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  initExoTabs();
+  updateScoreDisplay();
+});
+</script>
+</body>
+</html>
