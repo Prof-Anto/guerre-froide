@@ -82,14 +82,6 @@
   .card-back { background: #eaf8f0; color: var(--texte); transform: rotateY(180deg); font-size: 0.97rem; border: 2px solid var(--vert); }
   .flashcard-hint { text-align: center; font-size: 0.82rem; color: var(--gris-fonce); margin-top: 170px; }
 
-  /* IDENTITÉ ET DÉMARRAGE */
-  .identity-error { color: var(--rouge); font-weight: 600; margin: 10px 0; min-height: 1.5em; }
-  .identity-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin: 18px 0; }
-  .identity-fields label { display: flex; flex-direction: column; gap: 5px; font-weight: 600; color: var(--bleu); }
-  .identity-fields input { border: 2px solid #d0d7e2; border-radius: 8px; padding: 10px 12px; font: inherit; }
-  .identity-fields input:focus { outline: none; border-color: var(--bleu); }
-  @media (max-width: 650px) { .identity-fields { grid-template-columns: 1fr; } }
-
   /* EXERCICES */
   .exo-question { font-weight: 600; font-size: 1rem; margin-bottom: 14px; color: var(--bleu); }
   .exo-options { display: grid; gap: 10px; margin-bottom: 14px; }
@@ -423,21 +415,17 @@
 
 <!-- ==================== EXERCICES ==================== -->
 <div id="page-exercices" class="page">
-  <div id="quiz-start" class="card">
-    <h2>🧑‍🎓 Commencer le quiz</h2>
-    <p>Indiquez votre prénom et votre nom, puis cliquez sur « Commencer » pour accéder aux questions.</p>
-    <div class="identity-fields">
-      <label for="student-firstname">Prénom
-        <input id="student-firstname" type="text" autocomplete="given-name">
-      </label>
-      <label for="student-lastname">Nom
-        <input id="student-lastname" type="text" autocomplete="family-name">
-      </label>
+  <div id="student-gate" class="card" style="margin-bottom:14px">
+    <h2>👤 Avant de commencer</h2>
+    <p>Indique ton prénom et ton nom pour enregistrer automatiquement tes résultats.</p>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:8px">
+      <label style="flex:1;min-width:180px"><strong>Prénom</strong><input id="student-first-name" type="text" required autocomplete="given-name" placeholder="Prénom" style="display:block;width:100%;box-sizing:border-box;padding:10px;border:1px solid #ccd6e0;border-radius:8px;margin-top:4px"></label>
+      <label style="flex:1;min-width:180px"><strong>Nom</strong><input id="student-last-name" type="text" required autocomplete="family-name" placeholder="Nom" style="display:block;width:100%;box-sizing:border-box;padding:10px;border:1px solid #ccd6e0;border-radius:8px;margin-top:4px"></label>
+      <button class="btn btn-primary" type="button" onclick="startQuiz()">Commencer</button>
     </div>
-    <div id="identity-error" class="identity-error" role="alert" aria-live="polite"></div>
-    <button id="start-quiz-btn" class="btn btn-primary" onclick="startQuiz()">▶ Commencer</button>
+    <div id="student-gate-msg" class="feedback" role="status" aria-live="polite"></div>
   </div>
-  <div id="quiz-content" hidden>
+  <div id="category-completion-msg" class="progress-msg" role="status" aria-live="polite" style="display:none;margin-bottom:14px"></div>
   <div class="card" style="margin-bottom:14px">
     <h2>🧠 Exercices interactifs</h2>
     <div class="level-btns">
@@ -499,7 +487,6 @@
     <div class="score-bar-wrap"><div class="score-bar" id="score-bar" style="width:0%"></div></div>
     <div class="progress-msg" id="progress-msg">Commencez à répondre pour voir votre progression !</div>
     <div style="margin-top:12px"><button class="btn btn-rouge" onclick="resetScore()">🔄 Réinitialiser le score</button></div>
-  </div>
   </div>
 </div>
 
@@ -689,25 +676,131 @@ let vfIdx = 0;
 let trousIdx = 0;
 let flashIdx = 0;
 let flashOrder = flashcardsData.map((_,i)=>i);
-let quizStarted = false;
-let student = { firstname: '', lastname: '' };
+
+// ============================================================
+// ENREGISTREMENT DES RÉSULTATS
+// ============================================================
+// L'ancienne version reçue ne contient aucun endpoint Google Apps Script.
+// Remplacez la chaîne vide ci-dessous par l'URL déjà utilisée par votre projet
+// Apps Script avant publication. Aucun autre code ne modifie cette URL.
 const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwDy0iGXES5ZCdui2olDWC-Jjrv8cjhun5m_bs4p0R5lwRdXxJ5eNUomA85WBgTkQNn/exec';
-const answered = { qcm: new Set(), vf: new Set(), trous: new Set(), assoc: new Set() };
-const sendLocks = { category: new Set(), final: false, exit: false };
-let completedCategories = new Set();
+const CATEGORY_LABELS = { qcm: 'QCM', vf: 'Vrai/Faux', trous: 'Texte à trous', assoc: 'Association' };
+const CATEGORY_TOTALS = { qcm: 8, vf: 5, trous: 4, assoc: 4 };
+let studentName = '';
+let studentFirstName = '';
+let studentLastName = '';
+let quizStarted = false;
+let categoryProgress = { qcm: 0, vf: 0, trous: 0, assoc: 0 };
+let sentCategories = new Set();
+let sentFinal = false;
+let sentExit = false;
+let hiddenTimer = null;
+
+function startQuiz() {
+  const firstInput = document.getElementById('student-first-name');
+  const lastInput = document.getElementById('student-last-name');
+  const firstName = firstInput ? firstInput.value.trim() : '';
+  const lastName = lastInput ? lastInput.value.trim() : '';
+  const msg = document.getElementById('student-gate-msg');
+  if (!firstName || !lastName) {
+    if (msg) { msg.textContent = 'Merci d’indiquer ton prénom et ton nom avant de commencer.'; msg.className = 'feedback ko'; }
+    return;
+  }
+  studentFirstName = firstName;
+  studentLastName = lastName;
+  studentName = `${firstName} ${lastName}`;
+  quizStarted = true;
+  if (msg) { msg.textContent = 'C’est parti ! Tes résultats seront enregistrés automatiquement.'; msg.className = 'feedback ok'; }
+  const gate = document.getElementById('student-gate');
+  if (gate) gate.style.display = 'none';
+}
+function nowIso() { return new Date().toISOString(); }
+function currentCategoryScores() {
+  return {
+    qcm: categoryProgress.qcm || 0,
+    vraiFaux: categoryProgress.vf || 0,
+    texteATrous: categoryProgress.trous || 0,
+    association: categoryProgress.assoc || 0
+  };
+}
+function makePayload(type, category) {
+  const pct = score.total ? Math.round(score.ok / score.total * 100) : 0;
+  const niveau = pct >= 80 ? 'facile' : (pct >= 50 ? 'moyen' : 'difficile');
+  return {
+    // Champs conservés/attendus par le tableur :
+    nom: studentLastName,
+    prenom: studentFirstName,
+    dateHeure: nowIso(),
+    date: new Date().toLocaleDateString('fr-FR'),
+    heure: new Date().toLocaleTimeString('fr-FR'),
+    scoreTotal: score.ok,
+    total: score.total,
+    correctes: score.ok,
+    incorrectes: score.ko,
+    pourcentage: pct,
+    niveau: niveau,
+    // Alias conservés pour compatibilité avec les anciennes feuilles/scripts.
+    score: pct,
+    scoresParCategorie: currentCategoryScores(),
+    // Nouveaux champs de suivi :
+    type: type,
+    statut: type,
+    categorie: category ? (CATEGORY_LABELS[category] || category) : ''
+  };
+}
+function postResults(payload) {
+  if (!APPS_SCRIPT_URL) return false;
+  const body = JSON.stringify(payload);
+  try {
+    if (navigator.sendBeacon) {
+      const queued = navigator.sendBeacon(APPS_SCRIPT_URL, new Blob([body], {type: 'application/json'}));
+      if (queued) return true;
+    }
+  } catch (e) { /* fallback fetch ci-dessous */ }
+  try {
+    fetch(APPS_SCRIPT_URL, { method: 'POST', mode: 'no-cors', keepalive: true,
+      headers: {'Content-Type': 'text/plain;charset=UTF-8'}, body: body }).catch(() => {});
+    return true;
+  } catch (e) { return false; }
+}
+function maybeCompleteCategory(category) {
+  const limit = category === 'qcm' ? questionsQCM[currentLevel].length : category === 'vf' ? questionsVF[currentLevel].length : category === 'trous' ? questionsTrous[currentLevel].length : questionsAssoc[currentLevel][0].dates.length;
+  if (!limit || categoryProgress[category] < limit || sentCategories.has(category)) return;
+  sentCategories.add(category);
+  const msg = document.getElementById('category-completion-msg');
+  if (msg) { msg.textContent = `🎉 Bravo, tu as terminé les ${CATEGORY_LABELS[category]} !`; msg.style.display = 'block'; }
+  postResults(makePayload('categorie_terminee', category));
+  if (Object.keys(CATEGORY_TOTALS).every(c => { const n = c === 'qcm' ? questionsQCM[currentLevel].length : c === 'vf' ? questionsVF[currentLevel].length : c === 'trous' ? questionsTrous[currentLevel].length : questionsAssoc[currentLevel][0].dates.length; return categoryProgress[c] >= n; })) sendFinalResults();
+}
+function sendFinalResults() {
+  if (sentFinal || !quizStarted) return;
+  sentFinal = true;
+  postResults(makePayload('quiz_complet', ''));
+}
+function sendExitResults() {
+  if (sentExit || !quizStarted || score.total === 0) return;
+  sentExit = true;
+  postResults(makePayload('sortie_prematuree', ''));
+}
+function leaveToHome(btn) {
+  sendExitResults();
+  showPage('accueil', btn);
+}
+function handleVisibilityChange() {
+  if (document.visibilityState === 'hidden') {
+    clearTimeout(hiddenTimer);
+    hiddenTimer = setTimeout(sendExitResults, 1200);
+  } else clearTimeout(hiddenTimer);
+}
+window.addEventListener('beforeunload', sendExitResults);
+window.addEventListener('pagehide', sendExitResults);
+document.addEventListener('visibilitychange', handleVisibilityChange);
 
 // ============================================================
 // NAVIGATION
 // ============================================================
 function showPage(name, btn) {
-  if (name === 'exercices' && !quizStarted) {
-    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-    document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
-    document.getElementById('page-exercices').classList.add('active');
-    if (btn) btn.classList.add('active');
-    return;
-  }
-  if (quizStarted && name !== 'exercices' && completedCategories.size < 4) sendPrematureExit('navigation');
+  if (name === 'accueil') sendExitResults();
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
   document.getElementById('page-' + name).classList.add('active');
@@ -742,90 +835,46 @@ function setLevel(level, btn) {
 }
 
 // ============================================================
-// IDENTITÉ, ENVOIS ET FIN DE QUIZ
-// ============================================================
-function startQuiz() {
-  const firstname = document.getElementById('student-firstname').value.trim();
-  const lastname = document.getElementById('student-lastname').value.trim();
-  const error = document.getElementById('identity-error');
-  if (!firstname || !lastname) {
-    error.textContent = 'Veuillez saisir votre prénom et votre nom avant de commencer.';
-    return;
-  }
-  student = { firstname, lastname };
-  quizStarted = true;
-  error.textContent = '';
-  document.getElementById('quiz-start').hidden = true;
-  document.getElementById('quiz-content').hidden = false;
-  showPage('exercices', document.querySelectorAll('.nav-btn')[3]);
-}
-function resultPayload(kind, detail) {
-  return { type: kind, prenom: student.firstname, nom: student.lastname,
-    total: score.total, correctes: score.ok, incorrectes: score.ko,
-    score: score.total ? Math.round(score.ok / score.total * 100) : 0,
-    detail: detail || '', timestamp: new Date().toISOString() };
-}
-function postResult(kind, detail) {
-  const body = JSON.stringify(resultPayload(kind, detail));
-  fetch(APPS_SCRIPT_URL, { method: 'POST', mode: 'no-cors', headers: {'Content-Type':'text/plain;charset=utf-8'}, body }).catch(() => {});
-}
-function sendCategoryResult(category) {
-  if (sendLocks.category.has(category)) return;
-  sendLocks.category.add(category);
-  postResult('categorie', category);
-}
-function sendFinalResult() {
-  if (sendLocks.final) return;
-  sendLocks.final = true;
-  postResult('final', 'quiz complet');
-}
-function sendPrematureExit(reason) {
-  if (!quizStarted || sendLocks.exit) return;
-  sendLocks.exit = true;
-  const body = JSON.stringify(resultPayload('sortie_prematuree', reason));
-  if (navigator.sendBeacon) {
-    try { if (navigator.sendBeacon(APPS_SCRIPT_URL, new Blob([body], {type:'text/plain;charset=utf-8'}))) return; } catch (e) {}
-  }
-  fetch(APPS_SCRIPT_URL, { method:'POST', mode:'no-cors', headers:{'Content-Type':'text/plain;charset=utf-8'}, body, keepalive:true }).catch(() => {});
-}
-function completeCategory(category, message) {
-  if (completedCategories.has(category)) return;
-  completedCategories.add(category);
-  const fb = document.getElementById(category + '-fb');
-  if (fb) { fb.textContent = message; fb.className = 'feedback ok'; }
-  sendCategoryResult(category);
-  if (completedCategories.size === 4) sendFinalResult();
-}
-window.addEventListener('beforeunload', () => sendPrematureExit('fermeture'));
-
-// ============================================================
 // SCORE
 // ============================================================
-function addScore(correct) {
-  score.total++;
-  if (correct) score.ok++; else score.ko++;
+function addScore(correct, category) {
+  if (!quizStarted) return false;
+  score.total += 1;
+  if (correct) score.ok += 1; else score.ko += 1;
+  // Mise à jour immédiate et unique de l'état visible après chaque réponse.
   updateScoreDisplay();
+  if (category) {
+    categoryProgress[category] = (categoryProgress[category] || 0) + 1;
+    maybeCompleteCategory(category);
+  }
+  return true;
 }
 function updateScoreDisplay() {
   const pct = score.total > 0 ? Math.round(score.ok / score.total * 100) : 0;
-  ['', 'r-'].forEach(pfx => {
-    const t = document.getElementById(pfx+'total'); if(t) t.textContent = score.total;
-    const o = document.getElementById(pfx+'ok'); if(o) o.textContent = score.ok;
-    const k = document.getElementById(pfx+'ko'); if(k) k.textContent = score.ko;
-    const p = document.getElementById(pfx+'pct'); if(p) p.textContent = score.total > 0 ? pct+'%' : '—';
-    const b = document.getElementById(pfx === '' ? 'score-bar' : 'r-bar'); if(b) b.style.width = pct+'%';
+  const values = { total: score.total, ok: score.ok, ko: score.ko, pct: score.total > 0 ? pct + '%' : '—' };
+  // Les identifiants réels commencent par sc- (score live) et r- (résultats).
+  ['sc-', 'r-'].forEach(prefix => {
+    Object.entries(values).forEach(([key, value]) => {
+      const el = document.getElementById(prefix + key);
+      if (el) el.textContent = value;
+    });
+    const bar = document.getElementById(prefix === 'sc-' ? 'score-bar' : 'r-bar');
+    if (bar) bar.style.width = pct + '%';
   });
-  const msgs = ['sc-', 'r-'].map(pfx => document.getElementById(pfx === 'sc-' ? 'progress-msg' : 'r-msg'));
-  let msg = '';
-  if (score.total === 0) msg = 'Commencez à répondre pour voir votre progression !';
-  else if (pct >= 90) msg = '🏆 Excellent ! Vous maîtrisez très bien la Guerre froide !';
-  else if (pct >= 70) msg = '👍 Bonne progression ! Continuez, vous y êtes presque.';
-  else if (pct >= 50) msg = '📖 Pas mal ! Relisez le cours pour consolider vos connaissances.';
-  else msg = '💪 Courage ! Revoyez le cours et les flashcards avant de retenter.';
-  msgs.forEach(m => { if(m) m.textContent = msg; });
+  const msg = score.total === 0 ? 'Commencez à répondre pour voir votre progression !'
+    : pct >= 90 ? '🏆 Excellent ! Vous maîtrisez très bien la Guerre froide !'
+    : pct >= 70 ? '👍 Bonne progression ! Continuez, vous y êtes presque.'
+    : pct >= 50 ? '📖 Pas mal ! Relisez le cours pour consolider vos connaissances.'
+    : '💪 Courage ! Revoyez le cours et les flashcards avant de retenter.';
+  const liveMsg = document.getElementById('progress-msg');
+  const resultMsg = document.getElementById('r-msg');
+  if (liveMsg) liveMsg.textContent = msg;
+  if (resultMsg) resultMsg.textContent = msg;
 }
 function resetScore() {
   score = {total:0,ok:0,ko:0};
+  categoryProgress = { qcm: 0, vf: 0, trous: 0, assoc: 0 };
+  sentCategories.clear(); sentFinal = false; sentExit = false;
   updateScoreDisplay();
 }
 
@@ -849,7 +898,7 @@ function answerQCM(idx) {
   const qs = questionsQCM[currentLevel];
   const q = qs[qcmIdx % qs.length];
   const correct = idx === q.r;
-  addScore(correct);
+  addScore(correct, 'qcm');
   const btns = document.querySelectorAll('#qcm-opts .opt-btn');
   btns.forEach((b,i)=>{
     b.disabled = true;
@@ -859,8 +908,6 @@ function answerQCM(idx) {
   const fb = document.getElementById('qcm-fb');
   fb.textContent = (correct ? '✅ Bonne réponse ! ' : '❌ Mauvaise réponse. ') + q.expl;
   fb.className = 'feedback ' + (correct ? 'ok' : 'ko');
-  answered.qcm.add(qcmIdx % qs.length);
-  if (answered.qcm.size === qs.length) completeCategory('qcm', '🎉 Félicitations ! Catégorie QCM terminée.');
 }
 function nextQuestion() {
   qcmIdx++;
@@ -892,7 +939,7 @@ function answerVF(val) {
   const qs = questionsVF[currentLevel];
   const q = qs[vfIdx % qs.length];
   const correct = val === q.r;
-  addScore(correct);
+  addScore(correct, 'vf');
   const btns = document.querySelectorAll('#vf-btns .vf-btn');
   btns.forEach(b => b.disabled = true);
   const which = val ? 0 : 1;
@@ -901,8 +948,6 @@ function answerVF(val) {
   const fb = document.getElementById('vf-fb');
   fb.textContent = (correct ? '✅ Bonne réponse ! ' : '❌ Mauvaise réponse. ') + q.expl;
   fb.className = 'feedback ' + (correct ? 'ok' : 'ko');
-  answered.vf.add(vfIdx % qs.length);
-  if (answered.vf.size === qs.length) completeCategory('vf', '🎉 Félicitations ! Catégorie Vrai / Faux terminée.');
 }
 function nextVF() { vfIdx++; renderVF(); }
 
@@ -926,19 +971,16 @@ function checkTrous() {
   const qs = questionsTrous[currentLevel];
   const q = qs[trousIdx % qs.length];
   const inp = document.getElementById('trous-inp');
-  const questionKey = trousIdx % qs.length;
-  if (!inp || answered.trous.has(questionKey)) return;
+  if (!inp || inp.disabled) return;
   const val = inp.value.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"");
   const rep = q.trou.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"");
   const correct = val === rep;
-  addScore(correct);
+  addScore(correct, 'trous');
   inp.disabled = true;
   inp.classList.add(correct ? 'correct' : 'incorrect');
   const fb = document.getElementById('trous-fb');
   fb.textContent = correct ? `✅ Parfait ! "${q.trou}" est la bonne réponse.` : `❌ La bonne réponse était : "${q.trou}".`;
   fb.className = 'feedback ' + (correct ? 'ok' : 'ko');
-  answered.trous.add(questionKey);
-  if (answered.trous.size === qs.length) completeCategory('trous', '🎉 Félicitations ! Catégorie Texte à trous terminée.');
 }
 function nextTrous() { trousIdx++; renderTrous(); }
 
@@ -988,21 +1030,18 @@ function tryMatch() {
   const li = assocState.selectedLeft;
   const ri = assocState.selectedRight;
   const correct = assocState.pairs[li] === ri;
-  addScore(correct);
+  addScore(correct, 'assoc');
   document.getElementById('al-'+li).classList.remove('selected');
-  document.getElementById('al-'+li).classList.add(correct ? 'matched-ok' : 'matched-ko');
+  document.getElementById('al-'+li).classList.add(correct?'matched-ok':'matched-ko');
   document.getElementById('ar-'+ri).classList.remove('selected');
-  document.getElementById('ar-'+ri).classList.add(correct ? 'matched-ok' : 'matched-ko');
-  assocState.matched.push({left: li, right: ri});
-  assocState.selectedLeft = null;
-  assocState.selectedRight = null;
+  document.getElementById('ar-'+ri).classList.add(correct?'matched-ok':'matched-ko');
+  assocState.matched.push({left:li, right:ri});
+  assocState.selectedLeft = null; assocState.selectedRight = null;
   if (assocState.matched.length === assocState.data.dates.length) {
-    const allOk = assocState.matched.every(m => assocState.pairs[m.left] === m.right);
+    const allOk = assocState.matched.every(m => assocState.pairs[m.left]===m.right);
     const fb = document.getElementById('assoc-fb');
     fb.textContent = allOk ? '🎉 Parfait ! Toutes les associations sont correctes !' : 'Terminé. Vérifiez les associations en rouge.';
-    fb.className = 'feedback ' + (allOk ? 'ok' : 'ko');
-    answered.assoc.add(currentLevel);
-    completeCategory('assoc', allOk ? '🎉 Félicitations ! Catégorie Associations terminée.' : '🎉 Catégorie Associations terminée. Consultez les corrections.');
+    fb.className = 'feedback ' + (allOk?'ok':'ko');
   }
 }
 function newAssoc() { renderAssoc(); }
@@ -1065,6 +1104,7 @@ document.addEventListener('DOMContentLoaded', () => {
   updateScoreDisplay();
 });
 </script>
+<script type="module" src="https://static.cloudflareinsights.com/beacon.min.js/v31edd6df95cf4e85bb4c19e7a9bdbcba1788362987495" integrity="sha512-iIg7k2xntmwu6/uSb5tpc/hySgZc4eoL31yB29W6tJFo2akwjPWcEqnCEdJvGexCL0KEQwVYv5BlowfhVz26hg==" data-cf-beacon='{"version":"2024.11.0","token":"8607d2a720d14b038279025b2b5a82e5","spa":2}' crossorigin="anonymous"></script>
 <script type="module" src="https://static.cloudflareinsights.com/beacon.min.js/v31edd6df95cf4e85bb4c19e7a9bdbcba1788362987495" integrity="sha512-iIg7k2xntmwu6/uSb5tpc/hySgZc4eoL31yB29W6tJFo2akwjPWcEqnCEdJvGexCL0KEQwVYv5BlowfhVz26hg==" data-cf-beacon='{"version":"2024.11.0","token":"8607d2a720d14b038279025b2b5a82e5","spa":2}' crossorigin="anonymous"></script>
 </body>
 </html>
