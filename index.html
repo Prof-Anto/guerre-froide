@@ -130,14 +130,14 @@
 
   /* PROGRESS */
   .progress-msg { font-size: 0.95rem; padding: 10px 16px; border-radius: 8px; background: #eaf4fe; color: var(--bleu); margin-top: 10px; }
-  .quiz-start { background: #fff8e7; border: 2px solid var(--or); border-radius: var(--radius); padding: 18px 20px; margin-bottom: 14px; }
-  .quiz-start label { display: block; font-weight: 700; color: var(--bleu); margin-bottom: 7px; }
-  .quiz-start input { width: min(100%, 420px); padding: 10px 12px; border: 2px solid #d0d7e2; border-radius: 8px; font-size: 1rem; margin-right: 8px; }
-  .quiz-start input:focus { outline: 2px solid #f39c12; border-color: var(--or); }
-  .quiz-status { margin-top: 10px; font-size: 0.93rem; }
-  .quiz-status.error { color: var(--rouge); font-weight: 600; }
-  .quiz-status.success { color: #1a6b3c; font-weight: 600; }
-  .btn:disabled { opacity: 0.55; cursor: not-allowed; }
+  .quiz-start { background: #eef5ff; border: 2px solid #c9dcf5; border-radius: var(--radius); padding: 20px; margin-bottom: 20px; }
+  .quiz-start label { display: block; font-weight: 600; color: var(--bleu); margin-bottom: 6px; }
+  .quiz-start input { width: 100%; max-width: 420px; padding: 11px 14px; border: 2px solid #d0d7e2; border-radius: 8px; font-size: 1rem; margin-bottom: 10px; }
+  .quiz-start input:focus { outline: none; border-color: var(--bleu); }
+  .quiz-error { color: var(--rouge); font-weight: 600; min-height: 1.5em; margin-bottom: 8px; }
+  .send-status { margin-top: 14px; }
+  .send-status.success { background: #d4f5e2; color: #1a6b3c; }
+  .send-status.error { background: #fde8e8; color: #8b1a1a; }
 
   /* BOUTONS DIVERS */
   .btn { display: inline-block; padding: 10px 24px; border-radius: 24px; border: none; cursor: pointer; font-size: 0.95rem; font-weight: 600; transition: all 0.18s; }
@@ -423,14 +423,15 @@
 
 <!-- ==================== EXERCICES ==================== -->
 <div id="page-exercices" class="page">
-  <div class="quiz-start" id="quiz-start-panel">
-    <label for="student-name">Nom de l'élève <span aria-hidden="true">*</span></label>
-    <input id="student-name" type="text" maxlength="120" autocomplete="name" placeholder="Saisissez votre nom" aria-describedby="quiz-start-status">
-    <button class="btn btn-primary" id="start-quiz-btn" type="button" onclick="startQuiz()">Commencer</button>
-    <div class="quiz-status" id="quiz-start-status" role="status">Le nom est obligatoire pour commencer le quiz.</div>
-  </div>
   <div class="card" style="margin-bottom:14px">
     <h2>🧠 Exercices interactifs</h2>
+    <div class="quiz-start" id="quiz-start">
+      <label for="student-name">Nom de l'élève <span aria-hidden="true">*</span></label>
+      <input type="text" id="student-name" name="student-name" autocomplete="name" placeholder="Entrez votre nom" required>
+      <div class="quiz-error" id="quiz-start-error" role="alert"></div>
+      <button class="btn btn-primary" type="button" onclick="startQuiz()">Commencer</button>
+    </div>
+    <div id="quiz-content" style="display:none">
     <div class="level-btns">
       <button class="level-btn facile active" onclick="setLevel('facile', this)">😊 Facile</button>
       <button class="level-btn moyen" onclick="setLevel('moyen', this)">🤔 Moyen</button>
@@ -477,6 +478,7 @@
       </div>
     </div>
   </div>
+    </div>
 
   <!-- Score live -->
   <div class="card">
@@ -489,8 +491,6 @@
     </div>
     <div class="score-bar-wrap"><div class="score-bar" id="score-bar" style="width:0%"></div></div>
     <div class="progress-msg" id="progress-msg">Commencez à répondre pour voir votre progression !</div>
-    <div class="quiz-status" id="send-status" role="status" aria-live="polite">Les résultats seront envoyés automatiquement après les 4 catégories.</div>
-    <button class="btn btn-or" id="retry-send-btn" type="button" onclick="retrySendResults()" style="display:none;margin-top:10px">Réessayer manuellement</button>
     <div style="margin-top:12px"><button class="btn btn-rouge" onclick="resetScore()">🔄 Réinitialiser le score</button></div>
   </div>
 </div>
@@ -527,6 +527,7 @@
     </div>
     <div class="score-bar-wrap"><div class="score-bar" id="r-bar" style="width:0%"></div></div>
     <div class="progress-msg" id="r-msg" style="margin-top:14px">Faites des exercices pour voir vos résultats ici !</div>
+    <div class="progress-msg send-status" id="send-status" role="status" aria-live="polite">Les résultats seront envoyés automatiquement à la fin des quatre exercices.</div>
   </div>
   <div class="card">
     <h2>💡 Conseils personnalisés</h2>
@@ -683,91 +684,61 @@ let flashIdx = 0;
 let flashOrder = flashcardsData.map((_,i)=>i);
 let studentName = '';
 let quizStarted = false;
-let categoryAnswered = { qcm: new Set(), vf: new Set(), trous: new Set(), assoc: new Set() };
-let categoryScores = { qcm: { total: 0, ok: 0 }, vf: { total: 0, ok: 0 }, trous: { total: 0, ok: 0 }, assoc: { total: 0, ok: 0 } };
-let categoryDone = { qcm: false, vf: false, trous: false, assoc: false };
-let sendState = 'idle'; // idle, sending, success, failed
-const RESULTS_URL = 'https://script.google.com/macros/s/AKfycbwgfmUGZgKZ22JJjIjqhPuCCsUKYoxfrIL7hNENg3aMwK9Dz2DJxBPwb7Hk0BkEj7TLow/exec';
+let sendingState = 'idle';
+let exerciseCompleted = { qcm: false, vf: false, trous: false, assoc: false };
+const GOOGLE_APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwgfmUGZgKZ22JJjIjqhPuCCsUKYoxfrIL7hNENg3aMwK9Dz2DJxBPwb7Hk0BkEj7TLow/exec';
 
 // ============================================================
-// SESSION DU QUIZ ET ENVOI DES RÉSULTATS
+// DÉMARRAGE ET ENVOI AUTOMATIQUE DES RÉSULTATS
 // ============================================================
 function startQuiz() {
   const input = document.getElementById('student-name');
-  const name = input.value.trim();
-  const status = document.getElementById('quiz-start-status');
-  if (!name) {
-    status.textContent = 'Veuillez saisir le nom de l’élève avant de commencer.';
-    status.className = 'quiz-status error';
+  const error = document.getElementById('quiz-start-error');
+  studentName = input.value.trim();
+  if (!studentName) {
+    error.textContent = 'Veuillez saisir votre nom avant de commencer le quiz.';
     input.focus();
     return;
   }
-  studentName = name;
+  error.textContent = '';
   quizStarted = true;
-  document.getElementById('quiz-start-panel').style.display = 'none';
-  document.getElementById('send-status').textContent = 'Quiz démarré. Les résultats seront envoyés automatiquement après les 4 catégories.';
+  document.getElementById('quiz-content').style.display = 'block';
+  document.getElementById('quiz-start').style.display = 'none';
 }
-function requireQuizStarted() {
-  if (quizStarted) return true;
-  const panel = document.getElementById('quiz-start-panel');
-  const status = document.getElementById('quiz-start-status');
-  panel.style.display = 'block';
-  status.textContent = 'Saisissez le nom de l’élève puis cliquez sur « Commencer ».';
-  status.className = 'quiz-status error';
-  document.getElementById('student-name').focus();
-  return false;
+function markExerciseComplete(type) {
+  if (!quizStarted || exerciseCompleted[type]) return;
+  exerciseCompleted[type] = true;
+  if (Object.values(exerciseCompleted).every(Boolean)) envoyerResultats();
 }
-function markCategoryAnswer(category, index, correct) {
-  if (!quizStarted || categoryAnswered[category].has(index)) return;
-  categoryAnswered[category].add(index);
-  categoryScores[category].total++;
-  if (correct) categoryScores[category].ok++;
-  const expected = category === 'qcm' ? questionsQCM[currentLevel].length : category === 'vf' ? questionsVF[currentLevel].length : category === 'trous' ? questionsTrous[currentLevel].length : questionsAssoc[currentLevel][0].dates.length;
-  if (categoryAnswered[category].size >= expected) {
-    categoryDone[category] = true;
-    maybeSendResults();
+function setSendStatus(message, kind) {
+  const el = document.getElementById('send-status');
+  if (!el) return;
+  el.className = 'progress-msg send-status ' + (kind || '');
+  el.innerHTML = message;
+}
+function envoyerResultats() {
+  if (!quizStarted || sendingState === 'sending' || sendingState === 'success') return;
+  sendingState = 'sending';
+  showPage('resultats', document.querySelectorAll('.nav-btn')[5]);
+  setSendStatus('⏳ Envoi automatique des résultats en cours…', '');
+  if (!GOOGLE_APPS_SCRIPT_URL) {
+    sendingState = 'error';
+    setSendStatus("❌ Envoi impossible : aucune URL Google Apps Script n'était présente dans le fichier source. <button class=\"btn btn-secondary\" type=\"button\" onclick=\"envoyerResultats()\">Réessayer</button>", 'error');
+    return;
   }
+  fetch(GOOGLE_APPS_SCRIPT_URL, {
+    method: 'POST',
+    mode: 'no-cors',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify({ nom: studentName, score: score.total, bonnes_reponses: score.ok, mauvaises_reponses: score.ko, pourcentage: score.total ? Math.round(score.ok / score.total * 100) : 0 })
+  }).then(() => {
+    sendingState = 'success';
+    setSendStatus('✅ Résultats bien envoyés à votre professeur', 'success');
+  }).catch(() => {
+    sendingState = 'error';
+    setSendStatus("❌ Échec de l'envoi. Vérifiez votre connexion puis réessayez. <button class=\"btn btn-secondary\" type=\"button\" onclick=\"envoyerResultats()\">Réessayer manuellement</button>", 'error');
+  });
 }
-function maybeSendResults() {
-  if (!quizStarted || sendState !== 'idle' || !Object.values(categoryDone).every(Boolean)) return;
-  sendResults();
-}
-function buildResultsPayload() {
-  return { nom: studentName, name: studentName, date: new Date().toISOString(), scoreTotal: score.total, scoreOk: score.ok, scoreKo: score.ko, pourcentage: score.total ? Math.round(score.ok / score.total * 100) : 0, categories: categoryScores };
-}
-async function sendResults() {
-  if (sendState === 'sending' || sendState === 'success') return;
-  sendState = 'sending';
-  const status = document.getElementById('send-status');
-  const retry = document.getElementById('retry-send-btn');
-  status.className = 'quiz-status';
-  status.textContent = 'Envoi automatique des résultats en cours…';
-  retry.style.display = 'none';
-  try {
-    const response = await fetch(RESULTS_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(buildResultsPayload()) });
-    if (!response.ok) throw new Error('Réponse HTTP ' + response.status);
-    sendState = 'success';
-    status.className = 'quiz-status success';
-    status.textContent = '✅ Résultats envoyés avec succès.';
-  } catch (error) {
-    sendState = 'failed';
-    status.className = 'quiz-status error';
-    status.textContent = '❌ Échec de l’envoi des résultats. Vous pouvez réessayer manuellement.';
-    retry.style.display = 'inline-block';
-    console.error('Envoi des résultats impossible :', error);
-  }
-}
-function retrySendResults() {
-  if (sendState !== 'failed') return;
-  sendState = 'idle';
-  sendResults();
-}
-window.addEventListener('beforeunload', event => {
-  if (quizStarted && sendState !== 'success') {
-    event.preventDefault();
-    event.returnValue = '';
-  }
-});
 
 // ============================================================
 // NAVIGATION
@@ -803,30 +774,25 @@ function setLevel(level, btn) {
   document.querySelectorAll('.level-btn').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
   qcmIdx = 0; vfIdx = 0; trousIdx = 0;
-  categoryAnswered = { qcm: new Set(), vf: new Set(), trous: new Set(), assoc: new Set() };
-  categoryScores = { qcm: { total: 0, ok: 0 }, vf: { total: 0, ok: 0 }, trous: { total: 0, ok: 0 }, assoc: { total: 0, ok: 0 } };
-  categoryDone = { qcm: false, vf: false, trous: false, assoc: false };
   renderQCM(); renderVF(); renderTrous(); renderAssoc();
 }
 
 // ============================================================
 // SCORE
 // ============================================================
-function addScore(correct, category, index) {
-  if (!requireQuizStarted()) return;
+function addScore(correct) {
   score.total++;
   if (correct) score.ok++; else score.ko++;
-  if (category) markCategoryAnswer(category, index, correct);
   updateScoreDisplay();
 }
 function updateScoreDisplay() {
   const pct = score.total > 0 ? Math.round(score.ok / score.total * 100) : 0;
-  ['', 'r-'].forEach(pfx => {
+  ['sc-', 'r-'].forEach(pfx => {
     const t = document.getElementById(pfx+'total'); if(t) t.textContent = score.total;
     const o = document.getElementById(pfx+'ok'); if(o) o.textContent = score.ok;
     const k = document.getElementById(pfx+'ko'); if(k) k.textContent = score.ko;
     const p = document.getElementById(pfx+'pct'); if(p) p.textContent = score.total > 0 ? pct+'%' : '—';
-    const b = document.getElementById(pfx === '' ? 'score-bar' : 'r-bar'); if(b) b.style.width = pct+'%';
+    const b = document.getElementById(pfx === 'sc-' ? 'score-bar' : 'r-bar'); if(b) b.style.width = pct+'%';
   });
   const msgs = ['sc-', 'r-'].map(pfx => document.getElementById(pfx === 'sc-' ? 'progress-msg' : 'r-msg'));
   let msg = '';
@@ -839,12 +805,6 @@ function updateScoreDisplay() {
 }
 function resetScore() {
   score = {total:0,ok:0,ko:0};
-  categoryAnswered = { qcm: new Set(), vf: new Set(), trous: new Set(), assoc: new Set() };
-  categoryScores = { qcm: { total: 0, ok: 0 }, vf: { total: 0, ok: 0 }, trous: { total: 0, ok: 0 }, assoc: { total: 0, ok: 0 } };
-  categoryDone = { qcm: false, vf: false, trous: false, assoc: false };
-  sendState = 'idle';
-  document.getElementById('send-status').textContent = quizStarted ? 'Score réinitialisé. Les résultats seront envoyés après les 4 catégories.' : 'Les résultats seront envoyés automatiquement après les 4 catégories.';
-  document.getElementById('retry-send-btn').style.display = 'none';
   updateScoreDisplay();
 }
 
@@ -865,11 +825,10 @@ function renderQCM() {
   `;
 }
 function answerQCM(idx) {
-  if (!requireQuizStarted()) return;
   const qs = questionsQCM[currentLevel];
   const q = qs[qcmIdx % qs.length];
   const correct = idx === q.r;
-  addScore(correct, 'qcm', qcmIdx % qs.length);
+  addScore(correct);
   const btns = document.querySelectorAll('#qcm-opts .opt-btn');
   btns.forEach((b,i)=>{
     b.disabled = true;
@@ -879,6 +838,7 @@ function answerQCM(idx) {
   const fb = document.getElementById('qcm-fb');
   fb.textContent = (correct ? '✅ Bonne réponse ! ' : '❌ Mauvaise réponse. ') + q.expl;
   fb.className = 'feedback ' + (correct ? 'ok' : 'ko');
+  markExerciseComplete('qcm');
 }
 function nextQuestion() {
   qcmIdx++;
@@ -907,11 +867,10 @@ function renderVF() {
   `;
 }
 function answerVF(val) {
-  if (!requireQuizStarted()) return;
   const qs = questionsVF[currentLevel];
   const q = qs[vfIdx % qs.length];
   const correct = val === q.r;
-  addScore(correct, 'vf', vfIdx % qs.length);
+  addScore(correct);
   const btns = document.querySelectorAll('#vf-btns .vf-btn');
   btns.forEach(b => b.disabled = true);
   const which = val ? 0 : 1;
@@ -920,6 +879,7 @@ function answerVF(val) {
   const fb = document.getElementById('vf-fb');
   fb.textContent = (correct ? '✅ Bonne réponse ! ' : '❌ Mauvaise réponse. ') + q.expl;
   fb.className = 'feedback ' + (correct ? 'ok' : 'ko');
+  markExerciseComplete('vf');
 }
 function nextVF() { vfIdx++; renderVF(); }
 
@@ -940,7 +900,6 @@ function renderTrous() {
   document.getElementById('trous-inp').addEventListener('keydown', e => { if(e.key==='Enter') checkTrous(); });
 }
 function checkTrous() {
-  if (!requireQuizStarted()) return;
   const qs = questionsTrous[currentLevel];
   const q = qs[trousIdx % qs.length];
   const inp = document.getElementById('trous-inp');
@@ -948,12 +907,13 @@ function checkTrous() {
   const val = inp.value.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"");
   const rep = q.trou.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"");
   const correct = val === rep;
-  addScore(correct, 'trous', trousIdx % qs.length);
+  addScore(correct);
   inp.disabled = true;
   inp.classList.add(correct ? 'correct' : 'incorrect');
   const fb = document.getElementById('trous-fb');
   fb.textContent = correct ? `✅ Parfait ! "${q.trou}" est la bonne réponse.` : `❌ La bonne réponse était : "${q.trou}".`;
   fb.className = 'feedback ' + (correct ? 'ok' : 'ko');
+  markExerciseComplete('trous');
 }
 function nextTrous() { trousIdx++; renderTrous(); }
 
@@ -999,12 +959,11 @@ function selectRight(origIdx) {
   tryMatch();
 }
 function tryMatch() {
-  if (!requireQuizStarted()) return;
   if (assocState.selectedLeft === null || assocState.selectedRight === null) return;
   const li = assocState.selectedLeft;
   const ri = assocState.selectedRight;
   const correct = assocState.pairs[li] === ri;
-  addScore(correct, 'assoc', li);
+  addScore(correct);
   document.getElementById('al-'+li).classList.remove('selected');
   document.getElementById('al-'+li).classList.add(correct?'matched-ok':'matched-ko');
   document.getElementById('ar-'+ri).classList.remove('selected');
@@ -1016,6 +975,7 @@ function tryMatch() {
     const fb = document.getElementById('assoc-fb');
     fb.textContent = allOk ? '🎉 Parfait ! Toutes les associations sont correctes !' : 'Terminé. Vérifiez les associations en rouge.';
     fb.className = 'feedback ' + (allOk?'ok':'ko');
+    markExerciseComplete('assoc');
   }
 }
 function newAssoc() { renderAssoc(); }
@@ -1072,6 +1032,14 @@ function showExoTab(name, btn) {
   document.querySelectorAll('.exo-tab').forEach(b=>b.classList.remove('active'));
   btn.classList.add('active');
 }
+
+// Protection contre la fermeture accidentelle avant la fin du quiz.
+window.addEventListener('beforeunload', (event) => {
+  if (quizStarted && sendingState !== 'success' && score.total > 0) {
+    event.preventDefault();
+    event.returnValue = '';
+  }
+});
 
 document.addEventListener('DOMContentLoaded', () => {
   initExoTabs();
