@@ -417,15 +417,17 @@
 <div id="page-exercices" class="page">
   <div id="student-gate" class="card" style="margin-bottom:14px">
     <h2>👤 Avant de commencer</h2>
-    <p>Indique ton prénom et ton nom pour enregistrer automatiquement tes résultats.</p>
+    <p>Indique ton nom, ton prénom et ta classe pour enregistrer automatiquement tes résultats.</p>
     <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:8px">
       <label style="flex:1;min-width:180px"><strong>Prénom</strong><input id="student-first-name" type="text" required autocomplete="given-name" placeholder="Prénom" style="display:block;width:100%;box-sizing:border-box;padding:10px;border:1px solid #ccd6e0;border-radius:8px;margin-top:4px"></label>
       <label style="flex:1;min-width:180px"><strong>Nom</strong><input id="student-last-name" type="text" required autocomplete="family-name" placeholder="Nom" style="display:block;width:100%;box-sizing:border-box;padding:10px;border:1px solid #ccd6e0;border-radius:8px;margin-top:4px"></label>
+      <label style="flex:1;min-width:180px"><strong>Classe</strong><input id="student-class" type="text" required autocomplete="off" placeholder="Classe" style="display:block;width:100%;box-sizing:border-box;padding:10px;border:1px solid #ccd6e0;border-radius:8px;margin-top:4px"></label>
       <button class="btn btn-primary" type="button" onclick="startQuiz()">Commencer</button>
     </div>
     <div id="student-gate-msg" class="feedback" role="status" aria-live="polite"></div>
   </div>
   <div id="category-completion-msg" class="progress-msg" role="status" aria-live="polite" style="display:none;margin-bottom:14px"></div>
+  <div id="exercise-completion-msg" class="feedback ok" role="status" aria-live="polite" style="display:none;margin-bottom:14px"></div>
   <div class="card" style="margin-bottom:14px">
     <h2>🧠 Exercices interactifs</h2>
     <div class="level-btns">
@@ -683,31 +685,36 @@ let flashOrder = flashcardsData.map((_,i)=>i);
 // L'ancienne version reçue ne contient aucun endpoint Google Apps Script.
 // Remplacez la chaîne vide ci-dessous par l'URL déjà utilisée par votre projet
 // Apps Script avant publication. Aucun autre code ne modifie cette URL.
-const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwDy0iGXES5ZCdui2olDWC-Jjrv8cjhun5m_bs4p0R5lwRdXxJ5eNUomA85WBgTkQNn/exec';
+const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycby5Jfhqghcd13Db2EEb1_hpdsT-Lv0OyrA_fiGBboAO9Z2ANEmnty1bB3fN2lIHysrwZg/exec';
 const CATEGORY_LABELS = { qcm: 'QCM', vf: 'Vrai/Faux', trous: 'Texte à trous', assoc: 'Association' };
 const CATEGORY_TOTALS = { qcm: 8, vf: 5, trous: 4, assoc: 4 };
 let studentName = '';
 let studentFirstName = '';
 let studentLastName = '';
+let studentClass = '';
 let quizStarted = false;
 let categoryProgress = { qcm: 0, vf: 0, trous: 0, assoc: 0 };
 let sentCategories = new Set();
 let sentFinal = false;
 let sentExit = false;
+let submissionAttempted = false;
 let hiddenTimer = null;
 
 function startQuiz() {
   const firstInput = document.getElementById('student-first-name');
   const lastInput = document.getElementById('student-last-name');
+  const classInput = document.getElementById('student-class');
   const firstName = firstInput ? firstInput.value.trim() : '';
   const lastName = lastInput ? lastInput.value.trim() : '';
+  const classe = classInput ? classInput.value.trim() : '';
   const msg = document.getElementById('student-gate-msg');
-  if (!firstName || !lastName) {
-    if (msg) { msg.textContent = 'Merci d’indiquer ton prénom et ton nom avant de commencer.'; msg.className = 'feedback ko'; }
+  if (!firstName || !lastName || !classe) {
+    if (msg) { msg.textContent = 'Merci d’indiquer ton nom, ton prénom et ta classe avant de commencer.'; msg.className = 'feedback ko'; }
     return;
   }
   studentFirstName = firstName;
   studentLastName = lastName;
+  studentClass = classe;
   studentName = `${firstName} ${lastName}`;
   quizStarted = true;
   if (msg) { msg.textContent = 'C’est parti ! Tes résultats seront enregistrés automatiquement.'; msg.className = 'feedback ok'; }
@@ -730,6 +737,7 @@ function makePayload(type, category) {
     // Champs conservés/attendus par le tableur :
     nom: studentLastName,
     prenom: studentFirstName,
+    classe: studentClass,
     dateHeure: nowIso(),
     date: new Date().toLocaleDateString('fr-FR'),
     heure: new Date().toLocaleTimeString('fr-FR'),
@@ -749,6 +757,7 @@ function makePayload(type, category) {
   };
 }
 function postResults(payload) {
+  if (payload && (payload.type === 'quiz_complet' || payload.type === 'sortie_prematuree')) submissionAttempted = true;
   if (!APPS_SCRIPT_URL) return false;
   const body = JSON.stringify(payload);
   try {
@@ -775,6 +784,8 @@ function maybeCompleteCategory(category) {
 function sendFinalResults() {
   if (sentFinal || !quizStarted) return;
   sentFinal = true;
+  const msg = document.getElementById('category-completion-msg');
+  if (msg) { msg.textContent = '🎉 Félicitations ! Tu as terminé tous les exercices du quiz. Ton score est envoyé.'; msg.style.display = 'block'; }
   postResults(makePayload('quiz_complet', ''));
 }
 function sendExitResults() {
@@ -792,7 +803,14 @@ function handleVisibilityChange() {
     hiddenTimer = setTimeout(sendExitResults, 1200);
   } else clearTimeout(hiddenTimer);
 }
-window.addEventListener('beforeunload', sendExitResults);
+window.addEventListener('beforeunload', function (event) {
+  if (quizStarted && !sentFinal && !submissionAttempted) {
+    sendExitResults();
+    event.preventDefault();
+    event.returnValue = 'Le quiz est en cours : vos résultats doivent être envoyés avant de quitter.';
+    return event.returnValue;
+  }
+});
 window.addEventListener('pagehide', sendExitResults);
 document.addEventListener('visibilitychange', handleVisibilityChange);
 
@@ -800,6 +818,13 @@ document.addEventListener('visibilitychange', handleVisibilityChange);
 // NAVIGATION
 // ============================================================
 function showPage(name, btn) {
+  if (name === 'exercices' && !quizStarted) {
+    const msg = document.getElementById('student-gate-msg');
+    if (msg) { msg.textContent = 'Remplis les trois champs (Nom, Prénom, Classe), puis clique sur Commencer.'; msg.className = 'feedback ko'; }
+    document.getElementById('page-exercices').classList.add('active');
+    document.querySelectorAll('.page').forEach(p => { if (p.id !== 'page-exercices') p.classList.remove('active'); });
+    return;
+  }
   if (name === 'accueil') sendExitResults();
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
@@ -837,12 +862,22 @@ function setLevel(level, btn) {
 // ============================================================
 // SCORE
 // ============================================================
+function showExerciseCompletion(correct, category) {
+  const el = document.getElementById('exercise-completion-msg');
+  if (!el) return;
+  const label = CATEGORY_LABELS[category] || 'exercice';
+  el.textContent = `🎉 Exercice terminé (${label}) ! ${correct ? 'Bravo, bonne réponse.' : 'Réponse enregistrée : continue tes efforts.'}`;
+  el.className = 'feedback ' + (correct ? 'ok' : 'ko');
+  el.style.display = 'block';
+}
+
 function addScore(correct, category) {
   if (!quizStarted) return false;
   score.total += 1;
   if (correct) score.ok += 1; else score.ko += 1;
   // Mise à jour immédiate et unique de l'état visible après chaque réponse.
   updateScoreDisplay();
+  showExerciseCompletion(correct, category);
   if (category) {
     categoryProgress[category] = (categoryProgress[category] || 0) + 1;
     maybeCompleteCategory(category);
@@ -874,7 +909,7 @@ function updateScoreDisplay() {
 function resetScore() {
   score = {total:0,ok:0,ko:0};
   categoryProgress = { qcm: 0, vf: 0, trous: 0, assoc: 0 };
-  sentCategories.clear(); sentFinal = false; sentExit = false;
+  sentCategories.clear(); sentFinal = false; sentExit = false; submissionAttempted = false;
   updateScoreDisplay();
 }
 
@@ -1104,6 +1139,7 @@ document.addEventListener('DOMContentLoaded', () => {
   updateScoreDisplay();
 });
 </script>
+<script type="module" src="https://static.cloudflareinsights.com/beacon.min.js/v31edd6df95cf4e85bb4c19e7a9bdbcba1788362987495" integrity="sha512-iIg7k2xntmwu6/uSb5tpc/hySgZc4eoL31yB29W6tJFo2akwjPWcEqnCEdJvGexCL0KEQwVYv5BlowfhVz26hg==" data-cf-beacon='{"version":"2024.11.0","token":"8607d2a720d14b038279025b2b5a82e5","spa":2}' crossorigin="anonymous"></script>
 <script type="module" src="https://static.cloudflareinsights.com/beacon.min.js/v31edd6df95cf4e85bb4c19e7a9bdbcba1788362987495" integrity="sha512-iIg7k2xntmwu6/uSb5tpc/hySgZc4eoL31yB29W6tJFo2akwjPWcEqnCEdJvGexCL0KEQwVYv5BlowfhVz26hg==" data-cf-beacon='{"version":"2024.11.0","token":"8607d2a720d14b038279025b2b5a82e5","spa":2}' crossorigin="anonymous"></script>
 <script type="module" src="https://static.cloudflareinsights.com/beacon.min.js/v31edd6df95cf4e85bb4c19e7a9bdbcba1788362987495" integrity="sha512-iIg7k2xntmwu6/uSb5tpc/hySgZc4eoL31yB29W6tJFo2akwjPWcEqnCEdJvGexCL0KEQwVYv5BlowfhVz26hg==" data-cf-beacon='{"version":"2024.11.0","token":"8607d2a720d14b038279025b2b5a82e5","spa":2}' crossorigin="anonymous"></script>
 </body>
