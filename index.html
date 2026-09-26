@@ -417,15 +417,17 @@
 <div id="page-exercices" class="page">
   <div id="student-gate" class="card" style="margin-bottom:14px">
     <h2>👤 Avant de commencer</h2>
-    <p>Indique ton prénom et ton nom pour enregistrer automatiquement tes résultats.</p>
+    <p>Indique ton prénom, ton nom et ta classe pour enregistrer automatiquement tes résultats.</p>
     <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:8px">
       <label style="flex:1;min-width:180px"><strong>Prénom</strong><input id="student-first-name" type="text" required autocomplete="given-name" placeholder="Prénom" style="display:block;width:100%;box-sizing:border-box;padding:10px;border:1px solid #ccd6e0;border-radius:8px;margin-top:4px"></label>
       <label style="flex:1;min-width:180px"><strong>Nom</strong><input id="student-last-name" type="text" required autocomplete="family-name" placeholder="Nom" style="display:block;width:100%;box-sizing:border-box;padding:10px;border:1px solid #ccd6e0;border-radius:8px;margin-top:4px"></label>
-      <button class="btn btn-primary" type="button" onclick="startQuiz()">Commencer</button>
+      <label style="flex:1;min-width:180px"><strong>Classe</strong><input id="student-class" type="text" required autocomplete="organization" placeholder="Classe" style="display:block;width:100%;box-sizing:border-box;padding:10px;border:1px solid #ccd6e0;border-radius:8px;margin-top:4px"></label>
+      <button id="start-quiz-btn" class="btn btn-primary" type="button" onclick="startQuiz()">Commencer</button>
     </div>
     <div id="student-gate-msg" class="feedback" role="status" aria-live="polite"></div>
   </div>
   <div id="category-completion-msg" class="progress-msg" role="status" aria-live="polite" style="display:none;margin-bottom:14px"></div>
+  <div id="quiz-content" style="display:none" aria-hidden="true">
   <div class="card" style="margin-bottom:14px">
     <h2>🧠 Exercices interactifs</h2>
     <div class="level-btns">
@@ -442,6 +444,7 @@
 
     <!-- QCM -->
     <div id="exo-qcm">
+      <div class="exo-completion" id="qcm-completion" role="status" aria-live="polite" style="display:none"></div>
       <div id="qcm-container"></div>
       <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:10px">
         <button class="btn btn-primary" onclick="nextQuestion()">Question suivante ➜</button>
@@ -451,6 +454,7 @@
 
     <!-- VRAI/FAUX -->
     <div id="exo-vf" style="display:none">
+      <div class="exo-completion" id="vf-completion" role="status" aria-live="polite" style="display:none"></div>
       <div id="vf-container"></div>
       <div style="margin-top:10px">
         <button class="btn btn-primary" onclick="nextVF()">Question suivante ➜</button>
@@ -459,6 +463,7 @@
 
     <!-- TEXTE A TROUS -->
     <div id="exo-trous" style="display:none">
+      <div class="exo-completion" id="trous-completion" role="status" aria-live="polite" style="display:none"></div>
       <div id="trous-container"></div>
       <div style="margin-top:10px;display:flex;gap:10px;flex-wrap:wrap">
         <button class="btn btn-primary" onclick="checkTrous()">✅ Vérifier</button>
@@ -468,6 +473,7 @@
 
     <!-- ASSOCIATIONS -->
     <div id="exo-assoc" style="display:none">
+      <div class="exo-completion" id="assoc-completion" role="status" aria-live="polite" style="display:none"></div>
       <div id="assoc-container"></div>
       <div style="margin-top:10px">
         <button class="btn btn-secondary" onclick="newAssoc()">🔄 Nouveau jeu</button>
@@ -487,6 +493,7 @@
     <div class="score-bar-wrap"><div class="score-bar" id="score-bar" style="width:0%"></div></div>
     <div class="progress-msg" id="progress-msg">Commencez à répondre pour voir votre progression !</div>
     <div style="margin-top:12px"><button class="btn btn-rouge" onclick="resetScore()">🔄 Réinitialiser le score</button></div>
+  </div>
   </div>
 </div>
 
@@ -689,6 +696,7 @@ const CATEGORY_TOTALS = { qcm: 8, vf: 5, trous: 4, assoc: 4 };
 let studentName = '';
 let studentFirstName = '';
 let studentLastName = '';
+let studentClass = '';
 let quizStarted = false;
 let categoryProgress = { qcm: 0, vf: 0, trous: 0, assoc: 0 };
 let sentCategories = new Set();
@@ -697,22 +705,22 @@ let sentExit = false;
 let hiddenTimer = null;
 
 function startQuiz() {
-  const firstInput = document.getElementById('student-first-name');
-  const lastInput = document.getElementById('student-last-name');
-  const firstName = firstInput ? firstInput.value.trim() : '';
-  const lastName = lastInput ? lastInput.value.trim() : '';
+  const firstName = (document.getElementById('student-first-name')?.value || '').trim();
+  const lastName = (document.getElementById('student-last-name')?.value || '').trim();
+  const className = (document.getElementById('student-class')?.value || '').trim();
   const msg = document.getElementById('student-gate-msg');
-  if (!firstName || !lastName) {
-    if (msg) { msg.textContent = 'Merci d’indiquer ton prénom et ton nom avant de commencer.'; msg.className = 'feedback ko'; }
-    return;
+  if (!firstName || !lastName || !className) {
+    if (msg) { msg.textContent = 'Merci de renseigner le prénom, le nom et la classe avant de commencer.'; msg.className = 'feedback ko'; }
+    return false;
   }
-  studentFirstName = firstName;
-  studentLastName = lastName;
-  studentName = `${firstName} ${lastName}`;
-  quizStarted = true;
-  if (msg) { msg.textContent = 'C’est parti ! Tes résultats seront enregistrés automatiquement.'; msg.className = 'feedback ok'; }
+  studentFirstName = firstName; studentLastName = lastName; studentClass = className;
+  studentName = `${firstName} ${lastName}`; quizStarted = true;
   const gate = document.getElementById('student-gate');
+  const content = document.getElementById('quiz-content');
   if (gate) gate.style.display = 'none';
+  if (content) { content.style.display = 'block'; content.setAttribute('aria-hidden', 'false'); }
+  console.log('[quiz] accueil validé; exercices déverrouillés', { firstName, lastName, className });
+  return true;
 }
 function nowIso() { return new Date().toISOString(); }
 function currentCategoryScores() {
@@ -730,6 +738,7 @@ function makePayload(type, category) {
     // Champs conservés/attendus par le tableur :
     nom: studentLastName,
     prenom: studentFirstName,
+    classe: studentClass,
     dateHeure: nowIso(),
     date: new Date().toLocaleDateString('fr-FR'),
     heure: new Date().toLocaleTimeString('fr-FR'),
@@ -749,26 +758,48 @@ function makePayload(type, category) {
   };
 }
 function postResults(payload) {
-  if (!APPS_SCRIPT_URL) return false;
-  const body = JSON.stringify(payload);
+  if (!APPS_SCRIPT_URL) { console.error('[sheets] URL Apps Script absente'); return false; }
+  const form = new URLSearchParams();
+  Object.entries(payload).forEach(([key, value]) => form.append(key, typeof value === 'object' ? JSON.stringify(value) : String(value)));
+  const body = form.toString();
+  console.log('[sheets] avant envoi', { url: APPS_SCRIPT_URL, type: payload.type, category: payload.categorie, body });
   try {
     if (navigator.sendBeacon) {
-      const queued = navigator.sendBeacon(APPS_SCRIPT_URL, new Blob([body], {type: 'text/plain;charset=UTF-8'}));
+      const queued = navigator.sendBeacon(APPS_SCRIPT_URL, new Blob([body], { type: 'application/x-www-form-urlencoded;charset=UTF-8' }));
+      console.log('[sheets] sendBeacon', { queued });
       if (queued) return true;
     }
-  } catch (e) { /* fallback fetch ci-dessous */ }
+  } catch (e) { console.error('[sheets] sendBeacon erreur; fallback fetch', e); }
   try {
-    fetch(APPS_SCRIPT_URL, { method: 'POST', mode: 'no-cors', keepalive: true,
-      headers: {'Content-Type': 'text/plain;charset=UTF-8'}, body: body }).catch(() => {});
+    fetch(APPS_SCRIPT_URL, { method: 'POST', mode: 'no-cors', keepalive: true, headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' }, body })
+      .then(response => console.log('[sheets] réponse fetch (opaque attendue en no-cors)', { type: response.type, ok: response.ok, status: response.status }))
+      .catch(error => console.error('[sheets] erreur fetch', error));
     return true;
-  } catch (e) { return false; }
+  } catch (e) { console.error('[sheets] exception fetch', e); return false; }
 }
+function finishExercise(category) {
+  const root = document.getElementById('exo-' + category);
+  const completion = document.getElementById(category + '-completion');
+  if (!root || !completion) return;
+  Array.from(root.children).forEach(child => { child.style.display = child === completion ? 'block' : 'none'; });
+  completion.textContent = `🎉 Félicitations ! Tu as terminé cet exercice ${CATEGORY_LABELS[category]}.`;
+  completion.className = 'feedback ok';
+  completion.style.display = 'block';
+  root.dataset.finished = 'true';
+}
+function resetExerciseView(category) {
+  const root = document.getElementById('exo-' + category);
+  const completion = document.getElementById(category + '-completion');
+  if (!root || !completion) return;
+  root.dataset.finished = 'false';
+  Array.from(root.children).forEach(child => { child.style.display = child === completion ? 'none' : ''; });
+}
+
 function maybeCompleteCategory(category) {
   const limit = category === 'qcm' ? questionsQCM[currentLevel].length : category === 'vf' ? questionsVF[currentLevel].length : category === 'trous' ? questionsTrous[currentLevel].length : questionsAssoc[currentLevel][0].dates.length;
   if (!limit || categoryProgress[category] < limit || sentCategories.has(category)) return;
   sentCategories.add(category);
-  const msg = document.getElementById('category-completion-msg');
-  if (msg) { msg.textContent = `🎉 Bravo, tu as terminé les ${CATEGORY_LABELS[category]} !`; msg.style.display = 'block'; }
+  finishExercise(category);
   postResults(makePayload('categorie_terminee', category));
   if (Object.keys(CATEGORY_TOTALS).every(c => { const n = c === 'qcm' ? questionsQCM[currentLevel].length : c === 'vf' ? questionsVF[currentLevel].length : c === 'trous' ? questionsTrous[currentLevel].length : questionsAssoc[currentLevel][0].dates.length; return categoryProgress[c] >= n; })) sendFinalResults();
 }
@@ -827,10 +858,13 @@ function toggleSection(id) {
 // NIVEAUX
 // ============================================================
 function setLevel(level, btn) {
+  if (['qcm','vf','trous','assoc'].some(category => sentCategories.has(category))) return;
   currentLevel = level;
   document.querySelectorAll('.level-btn').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
   qcmIdx = 0; vfIdx = 0; trousIdx = 0;
+  ['qcm','vf','trous','assoc'].forEach(resetExerciseView);
+  sentCategories.clear();
   renderQCM(); renderVF(); renderTrous(); renderAssoc();
 }
 
@@ -875,6 +909,7 @@ function resetScore() {
   score = {total:0,ok:0,ko:0};
   categoryProgress = { qcm: 0, vf: 0, trous: 0, assoc: 0 };
   sentCategories.clear(); sentFinal = false; sentExit = false;
+  ['qcm','vf','trous','assoc'].forEach(resetExerciseView);
   updateScoreDisplay();
 }
 
@@ -895,6 +930,7 @@ function renderQCM() {
   `;
 }
 function answerQCM(idx) {
+  if (sentCategories.has('qcm')) return;
   const qs = questionsQCM[currentLevel];
   const q = qs[qcmIdx % qs.length];
   const correct = idx === q.r;
@@ -910,10 +946,12 @@ function answerQCM(idx) {
   fb.className = 'feedback ' + (correct ? 'ok' : 'ko');
 }
 function nextQuestion() {
+  if (sentCategories.has('qcm')) return;
   qcmIdx++;
   renderQCM();
 }
 function randomQuestion() {
+  if (sentCategories.has('qcm')) return;
   const qs = questionsQCM[currentLevel];
   qcmIdx = Math.floor(Math.random() * qs.length);
   renderQCM();
@@ -936,6 +974,7 @@ function renderVF() {
   `;
 }
 function answerVF(val) {
+  if (sentCategories.has('vf')) return;
   const qs = questionsVF[currentLevel];
   const q = qs[vfIdx % qs.length];
   const correct = val === q.r;
@@ -949,7 +988,7 @@ function answerVF(val) {
   fb.textContent = (correct ? '✅ Bonne réponse ! ' : '❌ Mauvaise réponse. ') + q.expl;
   fb.className = 'feedback ' + (correct ? 'ok' : 'ko');
 }
-function nextVF() { vfIdx++; renderVF(); }
+function nextVF() { if (sentCategories.has('vf')) return; vfIdx++; renderVF(); }
 
 // ============================================================
 // TEXTE À TROUS
@@ -968,6 +1007,7 @@ function renderTrous() {
   document.getElementById('trous-inp').addEventListener('keydown', e => { if(e.key==='Enter') checkTrous(); });
 }
 function checkTrous() {
+  if (sentCategories.has('trous')) return;
   const qs = questionsTrous[currentLevel];
   const q = qs[trousIdx % qs.length];
   const inp = document.getElementById('trous-inp');
@@ -982,7 +1022,7 @@ function checkTrous() {
   fb.textContent = correct ? `✅ Parfait ! "${q.trou}" est la bonne réponse.` : `❌ La bonne réponse était : "${q.trou}".`;
   fb.className = 'feedback ' + (correct ? 'ok' : 'ko');
 }
-function nextTrous() { trousIdx++; renderTrous(); }
+function nextTrous() { if (sentCategories.has('trous')) return; trousIdx++; renderTrous(); }
 
 // ============================================================
 // ASSOCIATIONS
@@ -1044,7 +1084,7 @@ function tryMatch() {
     fb.className = 'feedback ' + (allOk?'ok':'ko');
   }
 }
-function newAssoc() { renderAssoc(); }
+function newAssoc() { if (sentCategories.has('assoc')) return; renderAssoc(); }
 
 // ============================================================
 // FLASHCARDS
