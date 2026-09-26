@@ -733,7 +733,7 @@ function currentCategoryScores() {
 }
 function makePayload(type, category) {
   const pct = score.total ? Math.round(score.ok / score.total * 100) : 0;
-  const niveau = pct >= 80 ? 'facile' : (pct >= 50 ? 'moyen' : 'difficile');
+  const niveau = currentLevel;
   return {
     // Champs conservés/attendus par le tableur :
     nom: studentLastName,
@@ -748,6 +748,7 @@ function makePayload(type, category) {
     incorrectes: score.ko,
     pourcentage: pct,
     niveau: niveau,
+    exercice: CATEGORY_LABELS[category] || category || '',
     // Alias conservés pour compatibilité avec les anciennes feuilles/scripts.
     score: pct,
     scoresParCategorie: currentCategoryScores(),
